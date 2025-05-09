@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: react-traefik-dashboard-app
+    ports:
+      - "3001:3001" # Expose backend server port
+    volumes:
+      # Mount data directory for NeDB persistence
+      - ./data:/usr/src/app/data
+      # Mount docker socket for backend's dockerode (read-only)
+      # Note: This gives the backend container access to the Docker daemon,
+      # which might be a security concern depending on the environment.
+      # Needed for the automatic URL detection feature.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - NODE_ENV=production
+      # Optionally set the default Traefik URL if auto-detection is unreliable in Docker
+      # - TRAEFIK_API_URL=http://traefik:8080
+    networks:
+      - traefik-net
+
+  traefik:
+    image: traefik:v2.10 # Use a specific Traefik v2 version
+    container_name: traefik-for-dashboard-test
+    command:
+      # Enable API and dashboard (insecure for testing only!)
+      - "--api.insecure=true"
+      - "--api.dashboard=true"
+      # Configure Docker provider
+      - "--providers.docker=true"
+      # Don't expose all containers by default, use labels
+      - "--providers.docker.exposedbydefault=false"
+      # Define entrypoints
+      - "--entrypoints.web.address=:80"
+      # Log level (optional)
+      - "--log.level=DEBUG"
+    ports:
+      # Expose web entrypoint if needed for testing services through Traefik
+      - "80:80"
+      # Expose dashboard/API port ONLY if you need to access it directly from host
+      # - "8080:8080" # Usually not needed, app service accesses it internally
+    volumes:
+      # Mount Docker socket to allow Traefik to discover services
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      - traefik-net
+    # Add labels if you want Traefik to route to the dashboard app itself (optional)
+    # labels:
+    #   - "traefik.enable=true"
+    #   - "traefik.http.routers.dashboard-app.rule=Host(`dashboard.localhost`)" # Example rule
+    #   - "traefik.http.routers.dashboard-app.service=dashboard-app-svc"
+    #   - "traefik.http.services.dashboard-app-svc.loadbalancer.server.port=3001"
+
+networks:
+  traefik-net:
+    driver: bridge

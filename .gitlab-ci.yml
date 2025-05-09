@@ -1,0 +1,30 @@
+image: "e4e-harbor.deltaww.com/docker-hub/library/alpine:3.13"
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_HOST: "tcp://localhost:2375"
+stages:
+  - build
+  - deploy
+  - sast
+
+include:
+  - project: 'corp/it/itsec/sec/infra/ci-template'
+    ref: master
+    file:
+      - 'build.yml'
+      # - 'kaniko-build-cli.yml' # for build cli image stage
+      - 'update-service-chart.yml'
+      - 'sast-fortify.yml'
+      # - 'mongodb-bundle.yml' # for restore stage
+      # - 'sast-fortify.yml' # for test stage
+      # - 'sonarqube-check.yml' # for sonarqube-check stage
+
+update-service-chart:
+  variables:
+    CD_CHART_REPO: core-api-chart
+
+# sonarqube-check:
+#   variables:
+#     SONAR_PROJECTKEY: "backend-monolith"  # sonarqube UI create same project_key

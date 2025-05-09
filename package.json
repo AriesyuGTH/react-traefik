@@ -16,10 +16,11 @@
     "morgan": "~1.8.1",
     "nedb": "^1.8.0",
     "prop-types": "^15.5.8",
-    "react": "^15.5.4",
-    "react-dom": "^15.5.4",
+    "react": "^16.14.0",
+    "react-dom": "^16.14.0",
     "react-redux": "^5.0.4",
-    "redux": "^3.6.0",
+    "react-traefik": "file:",
+    "redux": "^4.2.0",
     "redux-logger": "^3.0.1",
     "redux-thunk": "^2.2.0",
     "request": "^2.81.0",
@@ -29,7 +30,7 @@
     "chai": "^3.5.0",
     "chai-http": "^3.0.0",
     "mocha": "^3.4.1",
-    "react-scripts": "0.9.5",
+    "react-scripts": "4.0.3",
     "should": "^11.2.1",
     "supertest": "^3.0.0"
   },
@@ -43,5 +44,8 @@
     "eject-front": "react-scripts eject",
     "install": "npm run build-front"
   },
-  "proxy": "http://localhost:3001"
+  "proxy": "http://localhost:3001",
+  "browser": {
+    "child_process": false
+  }
 }
