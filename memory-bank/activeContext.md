@@ -49,4 +49,4 @@
     - `src/actions/index.js`: All actions for v2 data implemented (Completed).
     - `src/reducers/index.js`: Handles all v2 data types (Completed).
     - `src/components/ThreeJSFlow.js`: Substantial integration for all v2 data types exists; primary focus is now on refinement and testing.
-- **Git Repository:** Project will be pushed to `ssh://git@e4e-vcs.deltaww.com:8080/andrew-test/infra/react-traefik.git`.
+- **Git Repository:** `https://github.com/AriesyuGTH/react-traefik.git` (Actual remote URL used for push).
