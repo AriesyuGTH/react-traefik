@@ -29,6 +29,7 @@
   "devDependencies": {
     "chai": "^3.5.0",
     "chai-http": "^3.0.0",
+    "cross-env": "^7.0.3",
     "mocha": "^3.4.1",
     "react-scripts": "4.0.3",
     "should": "^11.2.1",
@@ -39,10 +40,10 @@
     "test": "mocha --timeout 10000",
     "start-api": "node ./api/bin/www",
     "start-front": "react-scripts start",
-    "build-front": "react-scripts build",
+    "build-front": "cross-env NODE_OPTIONS=--openssl-legacy-provider react-scripts build",
     "test-front": "react-scripts test --env=jsdom",
     "eject-front": "react-scripts eject",
-    "install": "npm run build-front"
+    "//install": "npm run build-front"
   },
   "proxy": "http://localhost:3001",
   "browser": {
