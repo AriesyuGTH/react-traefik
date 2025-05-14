@@ -1,9 +1,15 @@
 import { combineReducers } from 'redux';
 import * as _ from 'lodash';
 import {
-  // REQUEST_TRAEFIK_PROVIDERS, RECEIVE_TRAEFIK_PROVIDERS, // v1 Deprecated
-  REQUEST_TRAEFIK_DATA, RECEIVE_TRAEFIK_ROUTERS, RECEIVE_TRAEFIK_SERVICES, RECEIVE_TRAEFIK_DATA_ERROR, // v2 New
-  REQUEST_CONFIG, RECEIVE_CONFIG, SET_URL, SEARCH, INVALIDATE_DATA // Others
+  REQUEST_TRAEFIK_DATA,
+  RECEIVE_TRAEFIK_ROUTERS,
+  RECEIVE_TRAEFIK_SERVICES,
+  RECEIVE_TRAEFIK_OVERVIEW,
+  RECEIVE_TRAEFIK_ENTRYPOINTS,
+  RECEIVE_TRAEFIK_MIDDLEWARES,
+  RECEIVE_TRAEFIK_TLS_CERTIFICATES,
+  RECEIVE_TRAEFIK_DATA_ERROR,
+  REQUEST_CONFIG, RECEIVE_CONFIG, SET_URL, SEARCH, INVALIDATE_DATA
 } from '../actions';
 
 // Initial state reflecting v2 structure
@@ -12,11 +18,15 @@ const initialDataState = {
   didInvalidate: false,
   configReady: false,
   traefik_url: null,
-  routers: null, // Changed from providers/fetchedProviders
-  services: null, // New for v2
+  routers: null,
+  services: null,
+  overview: null,
+  entrypoints: null,
+  middlewares: null,
+  tlsCertificates: null,
   search_query: '',
-  error: null, // Store general or data fetching errors
-  lastUpdated: null // Single timestamp for last successful fetch
+  error: null,
+  lastUpdated: null
 };
 
 function data(state = initialDataState, action) {
@@ -43,32 +53,51 @@ function data(state = initialDataState, action) {
     //     fetchedProviders: action.data,
     //     lastUpdatedProviders: action.receivedAt
     //   })
-    case RECEIVE_TRAEFIK_ROUTERS: // New v2
-      // TODO: Apply filtering if needed, for now store directly
-      // let filteredRouters = filterRouters(action.routers, state.search_query);
+    case RECEIVE_TRAEFIK_ROUTERS:
       return Object.assign({}, state, {
-        // isFetching: false, // Keep fetching until services also arrive? Or set here? Let's set on last action (services)
         didInvalidate: false,
-        routers: action.routers, // Store raw routers data
-        // filteredRouters: filteredRouters, // Store filtered routers if implementing filtering here
-        error: null, // Clear error on successful receive
-        lastUpdated: action.receivedAt // Set timestamp on first successful data piece
+        routers: action.routers,
+        error: null,
+        lastUpdated: action.receivedAt // Routers action sets the primary timestamp
       });
-    case RECEIVE_TRAEFIK_SERVICES: // New v2
-       // TODO: Apply filtering if needed
-       // let filteredServices = filterServices(action.services, state.search_query);
+    case RECEIVE_TRAEFIK_SERVICES:
       return Object.assign({}, state, {
-        isFetching: false, // Set fetching to false now that both parts arrived (assuming routers came first)
+        // isFetching will be set to false when all data is processed or on error
         didInvalidate: false,
-        services: action.services, // Store raw services data
-        // filteredServices: filteredServices,
-        error: null // Clear error on successful receive
+        services: action.services,
+        error: null
       });
-     case RECEIVE_TRAEFIK_DATA_ERROR: // New v2
+    case RECEIVE_TRAEFIK_OVERVIEW:
+      return Object.assign({}, state, {
+        didInvalidate: false,
+        overview: action.overview,
+        error: null
+      });
+    case RECEIVE_TRAEFIK_ENTRYPOINTS:
+      return Object.assign({}, state, {
+        didInvalidate: false,
+        entrypoints: action.entrypoints,
+        error: null
+      });
+    case RECEIVE_TRAEFIK_MIDDLEWARES:
+      return Object.assign({}, state, {
+        didInvalidate: false,
+        middlewares: action.middlewares,
+        error: null
+      });
+    case RECEIVE_TRAEFIK_TLS_CERTIFICATES:
+      return Object.assign({}, state, {
+        isFetching: false, // Assume this is the last piece of data in the Promise.all
+        didInvalidate: false,
+        tlsCertificates: action.tlsCertificates,
+        error: null
+      });
+    case RECEIVE_TRAEFIK_DATA_ERROR:
+        // When any part of the data fetch fails, set isFetching to false
         return Object.assign({}, state, {
             isFetching: false,
-            didInvalidate: true, // Indicate data might be stale/incomplete
-            error: action.error, // Store the error message
+            didInvalidate: true,
+            error: action.error,
             lastUpdated: action.receivedAt // Update timestamp even on error
         });
     case REQUEST_CONFIG:
@@ -89,28 +118,27 @@ function data(state = initialDataState, action) {
     case SET_URL:
       return Object.assign({}, state, {
         traefik_url: action.data,
-        // Reset data when URL changes? Yes, likely need to refetch.
+        // Reset data when URL changes, as new data will be fetched.
         routers: null,
         services: null,
-        // filteredRouters: null,
-        // filteredServices: null,
+        overview: null,
+        entrypoints: null,
+        middlewares: null,
+        tlsCertificates: null,
         error: null,
         didInvalidate: true, // Mark data as invalid due to URL change
         configReady: true // Assume ready once URL is set manually
       });
     case SEARCH:
-      // TODO: Re-implement search based on v2 structure (routers, services)
-      // For now, just store the query. Filtering needs to happen elsewhere or be re-implemented.
-      // let filteredRouters = filterRouters(state.routers, action.data);
-      // let filteredServices = filterServices(state.services, action.data);
+      // Filtering logic will be handled by components/selectors based on the search_query
       return Object.assign({}, state, {
         search_query: action.data
-        // filteredRouters: filteredRouters,
-        // filteredServices: filteredServices
       });
     case INVALIDATE_DATA:
        return Object.assign({}, state, {
            didInvalidate: true,
+           // Optionally clear all data fields as well if desired upon manual invalidation
+           // routers: null, services: null, overview: null, etc.
            error: null // Optionally clear error when manually invalidating
        });
     default:

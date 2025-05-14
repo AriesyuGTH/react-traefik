@@ -178,5 +178,144 @@ router.get('/v2/http/services', function (req, res, next) {
     });
 });
 
+/* GET v2 overview info from traefik. */
+router.get('/v2/overview', function (req, res, next) {
+    db.findOne({ name: 'url' }, function (err, doc) {
+        if (err) {
+            console.error("Error fetching URL from DB:", err);
+            return res.status(500).json({ message: 'Database error fetching Traefik URL', error: err });
+        }
+
+        if (!doc || !doc.value) {
+            return res.status(404).json({
+                message: 'Traefik URL not configured or found in DB'
+            });
+        }
+
+        const targetUrl = doc.value.replace(/\/$/, '') + '/api/overview'; // Ensure no trailing slash
+        console.log(`Proxying request to Traefik v2 overview: ${targetUrl}`);
+
+        try {
+            var x = request(targetUrl);
+            x.on('error', function(proxyErr) {
+                console.error(`Traefik v2 overview proxy request error to ${targetUrl}:`, proxyErr);
+                if (!res.headersSent) {
+                    res.status(502).json({ message: 'Bad Gateway - Error connecting to Traefik API (v2/overview)', error: proxyErr.message });
+                }
+            });
+            req.pipe(x).pipe(res);
+        } catch (requestErr) {
+             console.error(`Error initiating request to ${targetUrl}:`, requestErr);
+             if (!res.headersSent) {
+                res.status(500).json({ message: 'Failed to initiate proxy request to Traefik API', error: requestErr.message });
+            }
+        }
+    });
+});
+
+/* GET v2 entrypoints info from traefik. */
+router.get('/v2/entrypoints', function (req, res, next) {
+    db.findOne({ name: 'url' }, function (err, doc) {
+        if (err) {
+            console.error("Error fetching URL from DB:", err);
+            return res.status(500).json({ message: 'Database error fetching Traefik URL', error: err });
+        }
+
+        if (!doc || !doc.value) {
+            return res.status(404).json({
+                message: 'Traefik URL not configured or found in DB'
+            });
+        }
+
+        const targetUrl = doc.value.replace(/\/$/, '') + '/api/entrypoints'; // Ensure no trailing slash
+        console.log(`Proxying request to Traefik v2 entrypoints: ${targetUrl}`);
+
+        try {
+            var x = request(targetUrl);
+            x.on('error', function(proxyErr) {
+                console.error(`Traefik v2 entrypoints proxy request error to ${targetUrl}:`, proxyErr);
+                if (!res.headersSent) {
+                    res.status(502).json({ message: 'Bad Gateway - Error connecting to Traefik API (v2/entrypoints)', error: proxyErr.message });
+                }
+            });
+            req.pipe(x).pipe(res);
+        } catch (requestErr) {
+             console.error(`Error initiating request to ${targetUrl}:`, requestErr);
+             if (!res.headersSent) {
+                res.status(500).json({ message: 'Failed to initiate proxy request to Traefik API', error: requestErr.message });
+            }
+        }
+    });
+});
+
+/* GET v2 http middlewares info from traefik. */
+router.get('/v2/http/middlewares', function (req, res, next) {
+    db.findOne({ name: 'url' }, function (err, doc) {
+        if (err) {
+            console.error("Error fetching URL from DB:", err);
+            return res.status(500).json({ message: 'Database error fetching Traefik URL', error: err });
+        }
+
+        if (!doc || !doc.value) {
+            return res.status(404).json({
+                message: 'Traefik URL not configured or found in DB'
+            });
+        }
+
+        const targetUrl = doc.value.replace(/\/$/, '') + '/api/http/middlewares'; // Ensure no trailing slash
+        console.log(`Proxying request to Traefik v2 http/middlewares: ${targetUrl}`);
+
+        try {
+            var x = request(targetUrl);
+            x.on('error', function(proxyErr) {
+                console.error(`Traefik v2 http/middlewares proxy request error to ${targetUrl}:`, proxyErr);
+                if (!res.headersSent) {
+                    res.status(502).json({ message: 'Bad Gateway - Error connecting to Traefik API (v2/http/middlewares)', error: proxyErr.message });
+                }
+            });
+            req.pipe(x).pipe(res);
+        } catch (requestErr) {
+             console.error(`Error initiating request to ${targetUrl}:`, requestErr);
+             if (!res.headersSent) {
+                res.status(500).json({ message: 'Failed to initiate proxy request to Traefik API', error: requestErr.message });
+            }
+        }
+    });
+});
+
+/* GET v2 tls certificates info from traefik. */
+router.get('/v2/tls/certificates', function (req, res, next) {
+    db.findOne({ name: 'url' }, function (err, doc) {
+        if (err) {
+            console.error("Error fetching URL from DB:", err);
+            return res.status(500).json({ message: 'Database error fetching Traefik URL', error: err });
+        }
+
+        if (!doc || !doc.value) {
+            return res.status(404).json({
+                message: 'Traefik URL not configured or found in DB'
+            });
+        }
+
+        const targetUrl = doc.value.replace(/\/$/, '') + '/api/tls/certificates'; // Ensure no trailing slash
+        console.log(`Proxying request to Traefik v2 tls/certificates: ${targetUrl}`);
+
+        try {
+            var x = request(targetUrl);
+            x.on('error', function(proxyErr) {
+                console.error(`Traefik v2 tls/certificates proxy request error to ${targetUrl}:`, proxyErr);
+                if (!res.headersSent) {
+                    res.status(502).json({ message: 'Bad Gateway - Error connecting to Traefik API (v2/tls/certificates)', error: proxyErr.message });
+                }
+            });
+            req.pipe(x).pipe(res);
+        } catch (requestErr) {
+             console.error(`Error initiating request to ${targetUrl}:`, requestErr);
+             if (!res.headersSent) {
+                res.status(500).json({ message: 'Failed to initiate proxy request to Traefik API', error: requestErr.message });
+            }
+        }
+    });
+});
 
 module.exports = router;

@@ -7,6 +7,10 @@ export const SET_URL = 'SET_URL'
 export const REQUEST_TRAEFIK_DATA = 'REQUEST_TRAEFIK_DATA' // Renamed from REQUEST_TRAEFIK_PROVIDERS
 export const RECEIVE_TRAEFIK_ROUTERS = 'RECEIVE_TRAEFIK_ROUTERS' // New for v2
 export const RECEIVE_TRAEFIK_SERVICES = 'RECEIVE_TRAEFIK_SERVICES' // New for v2
+export const RECEIVE_TRAEFIK_OVERVIEW = 'RECEIVE_TRAEFIK_OVERVIEW' // New for v2
+export const RECEIVE_TRAEFIK_ENTRYPOINTS = 'RECEIVE_TRAEFIK_ENTRYPOINTS' // New for v2
+export const RECEIVE_TRAEFIK_MIDDLEWARES = 'RECEIVE_TRAEFIK_MIDDLEWARES' // New for v2
+export const RECEIVE_TRAEFIK_TLS_CERTIFICATES = 'RECEIVE_TRAEFIK_TLS_CERTIFICATES' // New for v2
 export const RECEIVE_TRAEFIK_DATA_ERROR = 'RECEIVE_TRAEFIK_DATA_ERROR' // New for v2 errors
 // export const RECEIVE_TRAEFIK_PROVIDERS = 'RECEIVE_TRAEFIK_PROVIDERS' // Deprecated v1
 export const INVALIDATE_DATA = 'INVALIDATE_DATA'
@@ -61,7 +65,39 @@ function receiveTraefikServices(json) {
   return {
     type: RECEIVE_TRAEFIK_SERVICES,
     services: json,
-    // receivedAt: Date.now() // Routers action will set the timestamp
+    // receivedAt: Date.now() // Main data action will set the timestamp
+  }
+}
+
+// New for v2 overview
+function receiveTraefikOverview(json) {
+  return {
+    type: RECEIVE_TRAEFIK_OVERVIEW,
+    overview: json,
+  }
+}
+
+// New for v2 entrypoints
+function receiveTraefikEntrypoints(json) {
+  return {
+    type: RECEIVE_TRAEFIK_ENTRYPOINTS,
+    entrypoints: json,
+  }
+}
+
+// New for v2 middlewares
+function receiveTraefikMiddlewares(json) {
+  return {
+    type: RECEIVE_TRAEFIK_MIDDLEWARES,
+    middlewares: json,
+  }
+}
+
+// New for v2 TLS certificates
+function receiveTraefikTlsCertificates(json) {
+  return {
+    type: RECEIVE_TRAEFIK_TLS_CERTIFICATES,
+    tlsCertificates: json,
   }
 }
 
@@ -164,32 +200,62 @@ export function fetchTraefikData(traefik_url) {
 }
 
 
-// New function to fetch v2 data (routers and services concurrently)
+// Updated function to fetch all necessary v2 data concurrently
 function fetchTraefikV2Data(dispatch) {
-  const fetchRouters = fetch(`${API_URL}/api/v2/http/routers`).then(response => {
-      if (!response.ok) { throw new Error(`HTTP error ${response.status} fetching routers`); }
-      return response.json();
-  });
-  const fetchServices = fetch(`${API_URL}/api/v2/http/services`).then(response => {
-      if (!response.ok) { throw new Error(`HTTP error ${response.status} fetching services`); }
-      return response.json();
+  const endpoints = {
+    routers: `${API_URL}/api/v2/http/routers`,
+    services: `${API_URL}/api/v2/http/services`,
+    overview: `${API_URL}/api/v2/overview`,
+    entrypoints: `${API_URL}/api/v2/entrypoints`,
+    middlewares: `${API_URL}/api/v2/http/middlewares`,
+    tlsCertificates: `${API_URL}/api/v2/tls/certificates`
+  };
+
+  const fetchPromises = Object.entries(endpoints).map(([key, url]) => {
+    return fetch(url).then(response => {
+      if (!response.ok) { throw new Error(`HTTP error ${response.status} fetching ${key} from ${url}`); }
+      return response.json().then(data => ({ key, data })); // Tag data with its key
+    });
   });
 
-  return Promise.all([fetchRouters, fetchServices])
-    .then(([routersJson, servicesJson]) => {
-      // Dispatch actions for both routers and services
-      // Use routers action to set the lastUpdated timestamp
-      dispatch(receiveTraefikRouters(routersJson));
-      dispatch(receiveTraefikServices(servicesJson));
+  return Promise.all(fetchPromises)
+    .then(results => {
+      // results is an array of {key, data} objects
+      // Dispatch actions for each piece of data
+      // The first successful data piece (e.g., routers) will set the lastUpdated timestamp
+      let timestampSet = false;
+      results.forEach(result => {
+        switch (result.key) {
+          case 'routers':
+            dispatch(receiveTraefikRouters(result.data));
+            timestampSet = true; // Assuming routers is always fetched and sets the primary timestamp
+            break;
+          case 'services':
+            dispatch(receiveTraefikServices(result.data));
+            break;
+          case 'overview':
+            dispatch(receiveTraefikOverview(result.data));
+            break;
+          case 'entrypoints':
+            dispatch(receiveTraefikEntrypoints(result.data));
+            break;
+          case 'middlewares':
+            dispatch(receiveTraefikMiddlewares(result.data));
+            break;
+          case 'tlsCertificates':
+            dispatch(receiveTraefikTlsCertificates(result.data));
+            break;
+          default:
+            console.warn("Unknown data key received:", result.key);
+        }
+      });
     })
     .catch(error => {
       console.error("Error fetching Traefik v2 data:", error);
-      // Dispatch a specific error action for data fetching failure
       dispatch(receiveTraefikDataError(error.message || 'Failed to fetch Traefik v2 data'));
-       // Also update config state to reflect the error
-       dispatch(receiveConfig({
-            configReady: false, // Indicate config is not ready due to error
-            error: error.message || 'Failed to fetch Traefik v2 data'
-        }));
+      dispatch(receiveConfig({
+        configReady: false,
+        error: error.message || 'Failed to fetch Traefik v2 data'
+      }));
     });
 }

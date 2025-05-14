@@ -1,43 +1,52 @@
-# Active Context: React Traefik Dashboard v2 API Migration (Initialization)
+# Active Context: React Traefik Dashboard v2 API Migration
 
 ## 1. Current Work Focus
 
-- **Backend Migration (Phase 1):** Modifying the Node.js backend (`api/routes/api.js`) to proxy Traefik v2 API endpoints instead of v1.
-- **Memory Bank Update:** Reflecting analysis findings and v2 API mapping in documentation.
+- **Finalizing Analysis & Handover for Testing:** Concluding the analysis of the current codebase, ensuring all findings are documented, and preparing for the user to take over for build/packaging tests and subsequent visual testing.
+- **Memory Bank Update:** Ensuring Memory Bank accurately reflects the latest project status and testing strategy.
 
 ## 2. Recent Changes
 
-- Created the `memory-bank` directory.
-- Created `projectbrief.md`.
-- Created `productContext.md`.
-- Created this file (`activeContext.md`).
+- Analyzed `repomix-output.xml`.
+- Confirmed backend API proxies (`api/routes/api.js`) for all required Traefik v2 endpoints are implemented.
+- Confirmed frontend Redux actions (`src/actions/index.js`) for fetching all v2 data types are implemented.
+- Confirmed frontend Redux reducers (`src/reducers/index.js`) for storing all v2 data types in the state are implemented.
+- Reviewed `src/components/ThreeJSFlow.js` and found **substantial existing integration for accessing, filtering, and visualizing all planned v2 data types** (overview, entrypoints, middlewares, TLS certificates, in addition to routers and services).
+- Updated `progress.md` to reflect the advanced state of component integration, adjusting overall progress.
+- Updated `activeContext.md` (this file) to reflect the current status.
+- Confirmed `systemPatterns.md` and `techContext.md` are up-to-date.
+- Created `.clinerules/project-workflow-and-testing.md` to document project-specific guidelines, including the new testing strategy.
 
 ## 3. Next Steps (Immediate)
 
-- **Update Memory Bank:** Reflect analysis findings (backend proxy role, dependencies, v1 API usage in actions/reducers). (Done for systemPatterns, productContext)
-- **Update Memory Bank:** Update progress.md. (Next)
-- **Modify Backend (`api/routes/api.js`):** Replace the `/api/providers` proxy logic with new proxies for v2 endpoints (e.g., `/api/v2/http/routers`, `/api/v2/http/services`).
-- **Frontend State Redesign:** Plan the new Redux state structure for v2 data.
+- **Confirm Code Readiness for Build Test:** Based on analysis, the core migration logic (backend proxies, Redux store, component data handling) appears to be in place.
+- **Handover to User for Testing:**
+    - Cline's responsibility for this phase concludes with ensuring the conceptual completeness of the code for migration.
+    - User will perform build/packaging tests (e.g., `npm run build-front`, `docker-compose build`).
+    - User will then perform visual testing of the UI.
+- **UI Refinement (Post-Testing by User):** Based on user's visual testing feedback, further UI refinements can be planned.
+- **Code Review & Cleanup (User Discretion):** User may choose to review `ThreeJSFlow.js` for refactoring.
 
 ## 4. Active Decisions & Considerations
 
-- **Memory Bank:** Establishing a robust documentation structure is crucial due to session memory resets.
-- **API Mapping:** The core challenge will be accurately mapping v1 concepts/endpoints (backends, frontends) to v2 concepts/endpoints (services, routers, middleware).
-- **State Management:** Need to understand the current Redux setup (`actions/`, `reducers/`, `store/`) and how API data is integrated into the application state. This will likely require significant refactoring.
-- **Backend API (`api/` directory):** Confirmed role as a proxy for the Traefik API (currently v1 `/api/providers`) and URL management. Migration requires modifying this backend.
+- **Memory Bank Synchronization:** Ensuring Memory Bank accurately reflects the codebase is paramount.
+- **API Completeness:** The goal is to proxy and utilize all relevant Traefik v2 API endpoints as defined in `productContext.md`.
+- **Frontend Data Handling:** Efficiently fetching, storing, and rendering multiple types of API data (routers, services, overview, etc.) in Redux and React components.
+- **Backward Compatibility (Out of Scope):** Focus is solely on Traefik v2.
 
-## 5. Important Patterns & Preferences (To Be Discovered)
+## 5. Important Patterns & Preferences
 
-*(This section will be populated as we analyze the code and establish working patterns)*
+- **Backend Proxy:** Node.js/Express backend in `api/` acts as a simple proxy to the Traefik API. New endpoints will follow this pattern.
+- **Frontend State Management:** Redux with `redux-thunk` for asynchronous actions. Data is fetched via `isomorphic-fetch`.
+- **Component-Based UI:** React components in `src/components/` and `src/containers/`.
+- **Visualization:** D3.js via a custom `Tree` class, integrated into the `ThreeJSFlow.js` React component.
 
-- Coding style preferences.
-- Preferred libraries or approaches for API calls (e.g., `fetch`, `axios`).
-- State management patterns observed.
+## 6. Learnings & Insights
 
-## 6. Learnings & Insights (To Be Discovered)
-
-*(This section will capture key learnings during the migration process)*
-
-- **API Mapping:** Identified key v2 endpoints (`/api/http/routers`, `/api/http/services`, etc.) corresponding to v1 `/api/providers`.
-- **Frontend Dependencies:** Confirmed use of React v15, Redux, isomorphic-fetch.
-- **Development Workflow:** Separate start scripts for frontend (`start-front`) and backend (`start-api`), with proxy configured in `package.json`.
+- **Project State Discrepancy:** Initial Memory Bank state was behind actual codebase progress, highlighting the importance of tools like `repomix-output.xml` for context recovery.
+- **Backend Progress (Completed):** All planned proxy routes in `api/routes/api.js` for Traefik v2 API endpoints are implemented.
+- **Frontend Progress:**
+    - `src/actions/index.js`: All actions for v2 data implemented (Completed).
+    - `src/reducers/index.js`: Handles all v2 data types (Completed).
+    - `src/components/ThreeJSFlow.js`: Substantial integration for all v2 data types exists; primary focus is now on refinement and testing.
+- **Git Repository:** Project will be pushed to `ssh://git@e4e-vcs.deltaww.com:8080/andrew-test/infra/react-traefik.git`.
