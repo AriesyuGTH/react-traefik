@@ -44,10 +44,12 @@
     - **Component Integration (Substantially Completed, UI Refinement Post-User-Testing):**
         - `src/components/ThreeJSFlow.js` includes logic to access, filter, and visualize all planned v2 data types.
         - UI refinements will be based on user feedback after visual testing.
-- **Testing (User-Led Next Major Step):**
-    - **Build/Packaging Test (User):** User to perform tests like `npm run build-front`, `docker-compose build`.
-    - **Visual Testing (User):** User to perform visual testing of the UI.
-    - Cline's direct testing responsibility for this phase is complete, pending user's build/packaging results.
+- **Testing (Next Major Steps):**
+    - **Build/Packaging Test (Cline-Executed, User-Verified):**
+        - Cline will execute build/packaging commands (e.g., `npm run build-front`, `docker-compose build`) using `execute_command`.
+        - Success requires an explicit success message from the build process, as per `.clinerules/build-testing-rules.md`. Mere completion without errors is insufficient.
+        - User to verify the outcome based on Cline's report of the build/packaging process.
+    - **Visual Testing (User-Led):** Following a successful build/packaging confirmed by Cline, the user will perform visual testing of the UI.
 - **Documentation:**
     - Memory Bank updates completed for this development cycle.
     - `.clinerules/project-workflow-and-testing.md` created.
