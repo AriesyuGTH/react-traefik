@@ -183,24 +183,7 @@ export default class ThreeJSFlow extends Component {
     }
 
     // --- Prepare v2 Data Structures ---
-    // Display Overview Info (simple text for now)
-    if (overview && Object.keys(overview).length > 0) {
-        let overviewHtml = `<strong>Traefik Overview:</strong><ul>`;
-        if(overview.version) overviewHtml += `<li>Version: ${overview.version}</li>`;
-        if(overview.message) overviewHtml += `<li>Message: ${overview.message}</li>`;
-        // Add more details from overview if needed, e.g., features
-        overviewHtml += `</ul>`;
-        select("#d3-flow-svg").append("foreignObject")
-            .attr("width", 300)
-            .attr("height", 100)
-            .attr("x", 10)
-            .attr("y", 10)
-            .append("xhtml:div")
-            .style("font-size", "12px")
-            .style("border", "1px solid #ccc")
-            .style("padding", "5px")
-            .html(overviewHtml);
-    }
+    // Overview Info removed from direct display as per design adjustment
     
     var traefikSideData = {
       name: "Traefik Instance", 
@@ -263,62 +246,53 @@ export default class ThreeJSFlow extends Component {
             };
             middlewaresGroupNode.children.push(middlewareNode);
         });
-        if (middlewaresGroupNode.children.length > 0) {
-            traefikSideData.children.push(middlewaresGroupNode);
-        }
+        // if (middlewaresGroupNode.children.length > 0) { // Middlewares group display removed to simplify graph
+        //     traefikSideData.children.push(middlewaresGroupNode);
+        // }
     }
     
-    // Process TLS Certificates and add them as a group to traefikSideData
-    if (tlsCertificates && tlsCertificates.length > 0) {
-        const tlsGroupNode = {
-            name: "TLS Certificates",
-            hasDetails: false,
-            children: [],
-            className: 'tls-certificates-group-node'
-        };
-        tlsCertificates.forEach(cert => {
-            // Assuming the certificate object has a 'main' or 'CN' and 'sans'
-            // Adjust based on actual Traefik API v2 structure for TLS certs
-            let certName = "Unknown Certificate";
-            let certDetails = "<ul>";
-            if (cert.main) { // Example property, adjust if needed
-                certName = cert.main;
-                certDetails += `<li>Main: ${cert.main}</li>`;
-            } else if (cert.domains && cert.domains.main) { // Another common structure
-                 certName = cert.domains.main;
-                 certDetails += `<li>Main Domain: ${cert.domains.main}</li>`;
-            }
-            
-            if (cert.sans && cert.sans.length > 0) { // Example property
-                certDetails += `<li>SANs: ${cert.sans.join(', ')}</li>`;
-            } else if (cert.domains && cert.domains.sans && cert.domains.sans.length > 0) {
-                 certDetails += `<li>SANs: ${cert.domains.sans.join(', ')}</li>`;
-            }
-            // Add more details like issuer, expiry if available and desired
-            certDetails += "</ul>";
+    // Process TLS Certificates (removed as tlsCertificates is no longer fetched)
+    // if (tlsCertificates && tlsCertificates.length > 0) { ... }
 
-            const tlsNode = {
-                name: certName,
-                hasDetails: true,
-                details: certDetails,
-                className: 'tls-certificate-node'
-            };
-            tlsGroupNode.children.push(tlsNode);
-        });
-        if (tlsGroupNode.children.length > 0) {
-            traefikSideData.children.push(tlsGroupNode);
-        }
-    }
+    var serviceMap = {}; // Still used to link routers to service details
+    var providerNodes = {}; // To store and reuse provider nodes
 
-    var serviceMap = {}; // To store processed service data for linking
-
-    // --- 1. Process Services (Backends) ---
+    // --- 1. Process Services (Backends) and group them under Providers ---
     Object.values(services).forEach(service => {
-      // Basic check for load balancer and servers
-      // Also check service type, maybe only handle LoadBalancer type?
-      if (service.type !== 'loadbalancer' || !service.loadBalancer || !service.loadBalancer.servers) return;
+      if (service.type !== 'loadbalancer' || !service.loadBalancer || !service.loadBalancer.servers) {
+        // Store non-loadbalancer services or services without servers in serviceMap for router details, but don't create visual nodes for them
+        const serviceKey = `${service.name}@${service.provider}`;
+        serviceMap[serviceKey] = {
+            key: serviceKey,
+            name: service.name,
+            provider: service.provider,
+            details: `<div>Provider: ${service.provider}</div><div>Type: ${service.type}</div> (No servers to display)`,
+            children: []
+        };
+        return;
+      }
 
-      var serverNodes = service.loadBalancer.servers.map(server => {
+      // Ensure provider node exists or create it
+      let providerNode = providerNodes[service.provider];
+      if (!providerNode) {
+        let providerImageSrc = 'images/file.png'; // Default provider icon
+        if (service.provider.toLowerCase().includes('docker')) {
+          providerImageSrc = 'images/docker.png';
+        }
+        // Add more provider icon conditions if needed for kubernetes, etc.
+
+        providerNode = {
+          name: `Provider: ${service.provider}`,
+          image: { src: providerImageSrc, width: 80, height: 80 }, // Adjusted size
+          children: [],
+          className: `provider-node provider-${service.provider.replace(/[^a-zA-Z0-9-_]/g, '')}`, // Sanitize provider name for CSS class
+          hasDetails: false // Providers might not need details themselves, or simple ones
+        };
+        providerNodes[service.provider] = providerNode;
+        traefikSideData.children.push(providerNode);
+      }
+
+      const serverNodes = service.loadBalancer.servers.map(server => {
         // Determine server status
         let status = 'Unknown';
         if (service.serverStatus && service.serverStatus[server.address]) {
@@ -333,29 +307,40 @@ export default class ThreeJSFlow extends Component {
           details: `<ul><li>URL: ${server.address}</li><li>Status: ${status}</li></ul>`,
           depth: 150, // Keep original layout params for now
           width: 200,
-          className: `traefik-server status-${status.toLowerCase()}` // Add status class
+          className: `traefik-server status-${status.toLowerCase()}`
         };
       });
 
-      // Use name@provider as unique key
       const serviceKey = `${service.name}@${service.provider}`;
-      serviceMap[serviceKey] = {
-        key: serviceKey, // Store the key itself
-        name: service.name,
+      const serviceNode = {
+        key: serviceKey,
+        name: service.name, // This is the "Backend" name from original design
         provider: service.provider,
-        children: serverNodes, // Server nodes are children of the service
-        // Add other relevant service details if needed for display
-        details: `<div>Provider: ${service.provider}</div><div>Type: ${service.type}</div>`
+        children: serverNodes,
+        hasDetails: true,
+        details: `<div>Provider: ${service.provider}</div><div>Type: ${service.type}</div>`,
+        className: 'service-node backend-node' // Use .node-html with default steelblue or custom .backend-node style
       };
+      
+      // Add this serviceNode to its provider's children
+      providerNode.children.push(serviceNode);
+      
+      // Also populate serviceMap for router linking
+      serviceMap[serviceKey] = serviceNode; 
     });
 
     // --- 2. Process Routers (Frontends) and Link to Services ---
     Object.values(routers).forEach(router => {
-      // Routers might not have a service (e.g., redirect middleware)
-      if (!router.service) return;
+      // Routers might not have a service (e.g., redirect middleware), skip visualization for now or handle differently
+      if (!router.service) {
+          // Create a router node even if it doesn't link to a service, if desired
+          // For now, consistent with original, only linkable routers are prominent
+          console.warn(`Router "${router.name}@${router.provider}" has no service, skipping direct visualization.`);
+          return;
+      }
 
       const serviceKey = `${router.service}@${router.provider}`;
-      const linkedServiceData = serviceMap[serviceKey];
+      const linkedServiceData = serviceMap[serviceKey]; // This now refers to the full serviceNode object
 
       // Build internet-side node (representing the route/rule)
       // Routers are now children of their respective entrypoints if that model is chosen,
@@ -364,83 +349,76 @@ export default class ThreeJSFlow extends Component {
       // and entrypoints are separate children of internetSideData.
       // We can refine the hierarchy later.
 
-      // Create a "Routes" parent node if it doesn't exist under internetSideData
-      let routesParentNode = internetSideData.children.find(c => c.name === "Configured Routes");
-      if (!routesParentNode) {
-          routesParentNode = {
-              name: "Configured Routes",
-              hasDetails: false,
-              children: [],
-              className: 'routes-group'
-          };
-          internetSideData.children.push(routesParentNode);
-      }
+      // Routers will be direct children of internetSideData
+      // let routesParentNode = internetSideData.children.find(c => c.name === "Configured Routes");
+      // if (!routesParentNode) {
+      //     routesParentNode = {
+      //         name: "Configured Routes",
+      //         hasDetails: false,
+      //         children: [],
+      //         className: 'routes-group'
+      //     };
+      //     internetSideData.children.push(routesParentNode);
+      // }
       
       let ruleLink = '#';
+      let displayName = router.name;
+      let hostInfoForDetails = '';
+
       try {
-          if (router.rule && router.rule.startsWith('Host(`')) {
-              const hostMatch = router.rule.match(/Host\(`([^`]+)`\)/);
-              if (hostMatch && hostMatch[1]) {
-                  const host = hostMatch[1];
-                  const scheme = router.entryPoints && router.entryPoints.some(ep => ep.toLowerCase().includes('https')) ? 'https://' : 'http://';
-                  ruleLink = scheme + host;
-              }
-          } else if (router.rule && router.rule.includes('PathPrefix(`')) {
-               const hostMatch = router.rule.match(/Host\(`([^`]+)`\)/);
-               const pathMatch = router.rule.match(/PathPrefix\(`([^`]+)`\)/);
-               if (hostMatch && hostMatch[1] && pathMatch && pathMatch[1]) {
-                   const host = hostMatch[1];
-                   const path = pathMatch[1];
-                   const scheme = router.entryPoints && router.entryPoints.some(ep => ep.toLowerCase().includes('https')) ? 'https://' : 'http://';
-                   ruleLink = scheme + host + path;
-               }
+        if (router.rule) {
+          const hostMatch = router.rule.match(/Host\(`([^`]+)`\)/);
+          if (hostMatch && hostMatch[1]) {
+            const host = hostMatch[1];
+            displayName = `${router.name} (Host: ${host})`;
+            hostInfoForDetails = `<div>Host: ${host}</div>`;
+            const scheme = router.entryPoints && router.entryPoints.some(ep => ep.toLowerCase().includes('https')) ? 'https://' : 'http://';
+            ruleLink = scheme + host;
+
+            const pathMatch = router.rule.match(/PathPrefix\(`([^`]+)`\)/);
+            if (pathMatch && pathMatch[1]) {
+              ruleLink += pathMatch[1];
+            }
+          } else {
+            // Handle other rule types if necessary for displayName or ruleLink
+            const pathMatch = router.rule.match(/PathPrefix\(`([^`]+)`\)/);
+            if (pathMatch && pathMatch[1]) {
+                displayName = `${router.name} (PathPrefix: ${pathMatch[1]})`;
+            }
           }
-      } catch (e) { console.warn("Could not parse rule for link:", router.rule); }
+        }
+      } catch (e) { console.warn("Could not parse rule for link or display name:", router.rule); }
+      
+      const detailsHtml = `
+        ${hostInfoForDetails}
+        <div>Rule: ${router.rule}</div>
+        <div>EntryPoints: ${router.entryPoints ? router.entryPoints.join(", ") : "N/A"}</div>
+        <div>Provider: ${router.provider}</div>
+        ${router.middlewares ? `<div>Middlewares: ${router.middlewares.join(", ")}</div>` : ''}
+        ${linkedServiceData ? `<div>Service: ${linkedServiceData.name} (${linkedServiceData.provider})</div>` : `<div>Service: ${router.service}@${router.provider} (Not Found/Visualized)</div>`}
+        ${ruleLink !== '#' ? `<div><a class="backend-link" target="_blank" href="${ruleLink}">Link (best guess)</a></div>` : ''}
+      `;
 
       const routeNode = {
-        name: router.name,
-        entryPoints: router.entryPoints ? router.entryPoints.join(", ") : "N/A",
-        backend: serviceKey,
+        name: displayName,
+        entryPoints: router.entryPoints ? router.entryPoints.join(", ") : "N/A", // Used by Tree.js for link text
+        backend: serviceKey, // Internal linkage, not directly displayed by Tree.js as a property
         hasDetails: true,
-        details: `<div>Rule: ${router.rule}</div>
-                  <div>EntryPoints: ${router.entryPoints ? router.entryPoints.join(", ") : "N/A"}</div>
-                  <div>Provider: ${router.provider}</div>
-                  ${router.middlewares ? `<div>Middlewares: ${router.middlewares.join(", ")}</div>` : ''}
-                  ${linkedServiceData ? `<div>Service: ${linkedServiceData.name} (${linkedServiceData.provider})</div>` : `<div>Service: ${router.service}@${router.provider} (Not Found/Visualized)</div>`}
-                  ${ruleLink !== '#' ? `<div><a class="backend-link" target="_blank" href="${ruleLink}">Link (best guess)</a></div>` : ''}`,
-        className: 'internet-route'
+        details: detailsHtml.trim(),
+        className: 'internet-route frontend-node' // Ensures .node-html is used by Tree.js
       };
-      routesParentNode.children.push(routeNode); // Add router to "Configured Routes"
+      internetSideData.children.push(routeNode);
 
-      // Add service node to the traefik side if it's linked and not already added
-      if (linkedServiceData) {
-           let serviceGroupNode = traefikSideData.children.find(n => n.key === serviceKey);
-           if (!serviceGroupNode) {
-               // Determine image based on provider (simple example)
-               let providerImage = 'images/docker.png'; // Default
-               // Use includes for broader matching (e.g., docker@docker, kubernetescrd@kubernetescrd)
-               if (linkedServiceData.provider.toLowerCase().includes('file')) providerImage = 'images/file.png';
-               else if (linkedServiceData.provider.toLowerCase().includes('kubernetes')) providerImage = 'images/cloud.png'; // Example for k8s
-               // Add more provider checks if needed
-
-               serviceGroupNode = {
-                   key: serviceKey,
-                   name: linkedServiceData.name, // Service name
-                   provider: linkedServiceData.provider,
-                   children: linkedServiceData.children, // Add server nodes
-                   image: { src: providerImage, width: 100, height: 100 }, // Use determined image
-                   details: linkedServiceData.details, // Add service details
-                   className: `traefik-service provider-${linkedServiceData.provider}` // Add classes
-               };
-               traefikSideData.children.push(serviceGroupNode);
-           }
-           // Optionally, add router info to service details if needed
-           // serviceGroupNode.details += `<div>Linked Router: ${router.name}</div>`;
-      } else {
-          console.warn(`Router "${router.name}@${router.provider}" points to unknown or non-loadbalancer service "${serviceKey}"`);
-          // Optionally create a placeholder node on the traefik side for the missing/non-LB service
+      // Service node (if it exists and has servers) is already added to its provider's children.
+      // No need to add it to traefikSideData.children directly here anymore.
+      if (!linkedServiceData) {
+          console.warn(`Router "${router.name}@${router.provider}" points to service "${serviceKey}" which is not a loadbalancer or has no servers.`);
       }
+      // Router's `details` string already includes linked service name.
     });
+    
+    // Ensure entrypoints are direct children of internetSideData if they were not used to group routers
+    // This part is already handled earlier by pushing entrypointNode to internetSideData.children
 
     // --- 3. Adjust layout parameters based on data size ---
     // Calculate leaves based on server nodes
@@ -449,13 +427,11 @@ export default class ThreeJSFlow extends Component {
 
     // --- 4. Render Trees ---
     var tree = new Tree();
-    // Only render if there are children to avoid errors
-    if (traefikSideData.children.length > 0) {
-        // Use Math.max to ensure a minimum width, prevent collapse if few leaves
+    // Always attempt to render the root nodes, Tree.js should handle empty children for root.
+    if (traefikSideData) { 
         tree.createTree("#d3-flow-svg", traefikSideData, "left-to-right", Math.max(traefikLeaves * 150, 300));
     }
-    if (internetSideData.children.length > 0) {
-         // Use Math.max to ensure a minimum width
+    if (internetSideData) {
         tree.createTree("#d3-flow-svg", internetSideData, "right-to-left", Math.max(internetLeaves * 170, 300));
     }
   }

@@ -7,7 +7,7 @@ import {
   RECEIVE_TRAEFIK_OVERVIEW,
   RECEIVE_TRAEFIK_ENTRYPOINTS,
   RECEIVE_TRAEFIK_MIDDLEWARES,
-  RECEIVE_TRAEFIK_TLS_CERTIFICATES,
+  // RECEIVE_TRAEFIK_TLS_CERTIFICATES, // Removed
   RECEIVE_TRAEFIK_DATA_ERROR,
   REQUEST_CONFIG, RECEIVE_CONFIG, SET_URL, SEARCH, INVALIDATE_DATA
 } from '../actions';
@@ -23,7 +23,7 @@ const initialDataState = {
   overview: null,
   entrypoints: null,
   middlewares: null,
-  tlsCertificates: null,
+  // tlsCertificates: null, // Removed
   search_query: '',
   error: null,
   lastUpdated: null
@@ -81,19 +81,48 @@ function data(state = initialDataState, action) {
       });
     case RECEIVE_TRAEFIK_MIDDLEWARES:
       return Object.assign({}, state, {
+        isFetching: false, // All expected data fetched successfully
         didInvalidate: false,
         middlewares: action.middlewares,
         error: null
       });
-    case RECEIVE_TRAEFIK_TLS_CERTIFICATES:
-      return Object.assign({}, state, {
-        isFetching: false, // Assume this is the last piece of data in the Promise.all
-        didInvalidate: false,
-        tlsCertificates: action.tlsCertificates,
-        error: null
-      });
+    // case RECEIVE_TRAEFIK_TLS_CERTIFICATES: // Removed
+    //   return Object.assign({}, state, {
+    //     isFetching: false, // Assume this is the last piece of data in the Promise.all
+    //     didInvalidate: false,
+    //     tlsCertificates: action.tlsCertificates,
+    //     error: null
+    //   });
     case RECEIVE_TRAEFIK_DATA_ERROR:
         // When any part of the data fetch fails, set isFetching to false
+        // Also, ensure isFetching is set to false when all data is successfully fetched.
+        // This can be done by checking if all expected data pieces have arrived.
+        // For simplicity now, we'll rely on a final action or error to set isFetching to false.
+        // A more robust approach might involve counting expected dispatches.
+        // For now, the last successful data dispatch (e.g. middlewares if it's last) or error will set it.
+        // Let's assume middlewares is the last one for now if tlsCertificates is removed.
+        // Or, better, set isFetching to false in the .then() of Promise.all in actions *after* all dispatches,
+        // or ensure the last data action sets it.
+        // The current logic in actions.js does not explicitly set isFetching: false on full success.
+        // Let's adjust the last expected action (middlewares) to set isFetching: false.
+        // If middlewares is the last one:
+        // case RECEIVE_TRAEFIK_MIDDLEWARES:
+        // return Object.assign({}, state, {
+        //   isFetching: false, // <--- Add this if middlewares is now the last expected data
+        //   didInvalidate: false,
+        //   middlewares: action.middlewares,
+        //   error: null
+        // });
+        // However, the error case already sets isFetching: false.
+        // And if all promises resolve, the `isFetching` should be set to false.
+        // The current logic in `RECEIVE_TRAEFIK_TLS_CERTIFICATES` (now removed) was setting it.
+        // Let's ensure the last *actual* data piece being fetched sets isFetching to false.
+        // If middlewares is the last, it should do it.
+        // For now, let's assume the RECEIVE_TRAEFIK_DATA_ERROR will handle the false case on error,
+        // and we need a way to set it to false on success.
+        // The simplest is to set it false on the last *expected* successful data action.
+        // If `middlewares` is now the last, it should set `isFetching: false`.
+        // Let's modify the `RECEIVE_TRAEFIK_MIDDLEWARES` case.
         return Object.assign({}, state, {
             isFetching: false,
             didInvalidate: true,
@@ -124,7 +153,7 @@ function data(state = initialDataState, action) {
         overview: null,
         entrypoints: null,
         middlewares: null,
-        tlsCertificates: null,
+        // tlsCertificates: null, // Removed
         error: null,
         didInvalidate: true, // Mark data as invalid due to URL change
         configReady: true // Assume ready once URL is set manually

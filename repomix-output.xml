@@ -44,79 +44,199 @@ The content is organized as follows:
 </file_summary>
 
 <directory_structure>
+.clinerules/
+  build-testing-rules.md
+  project-workflow-and-testing.md
+api/
+  bin/
+    www
+  public/
+    stylesheets/
+      style.css
+  routes/
+    api.js
+  .gitignore
+  app.js
+config/
+  default.json
+  test.json
+memory-bank/
+  activeContext.md
+  productContext.md
+  progress.md
+  projectbrief.md
+  systemPatterns.md
+  techContext.md
+public/
+  index.html
+src/
+  actions/
+    index.js
+  components/
+    Search.js
+    ThreeJSFlow.js
+    Tree.js
+    UrlInput.js
+  containers/
+    AsyncApp.js
+    Root.js
+  reducers/
+    index.js
+  store/
+    configureStore.js
+  App.css
+  App.js
+  App.test.js
+  Conf.js
+  index.css
+  index.js
+test/
+  data/
+    cache.db
+  test.js
+traefik/
+  conf/
+    traefik.yml
 .gitignore
 .gitlab-ci.yml
-api/.gitignore
-api/app.js
-api/bin/www
-api/public/stylesheets/style.css
-api/routes/api.js
-config/default.json
-config/test.json
+.gitpod.yml
 docker-compose.yml
 Dockerfile
-memory-bank/activeContext.md
-memory-bank/productContext.md
-memory-bank/progress.md
-memory-bank/projectbrief.md
-memory-bank/systemPatterns.md
-memory-bank/techContext.md
 package.json
-public/index.html
 README.md
-src/actions/index.js
-src/App.css
-src/App.js
-src/App.test.js
-src/components/Search.js
-src/components/ThreeJSFlow.js
-src/components/Tree.js
-src/components/UrlInput.js
-src/Conf.js
-src/containers/AsyncApp.js
-src/containers/Root.js
-src/index.css
-src/index.js
-src/reducers/index.js
-src/store/configureStore.js
-test/data/cache.db
-test/test.js
 </directory_structure>
 
 <files>
 This section contains the contents of the repository's files.
 
-<file path=".gitlab-ci.yml">
-image: "e4e-harbor.deltaww.com/docker-hub/library/alpine:3.13"
+<file path="traefik/conf/traefik.yml">
+logLevel: DEBUG
 
-variables:
-  DOCKER_DRIVER: overlay2
-  DOCKER_TLS_CERTDIR: ""
-  DOCKER_HOST: "tcp://localhost:2375"
-stages:
-  - build
-  - deploy
-  - sast
+api:
+  insecure: true
+  dashboard: true
 
-include:
-  - project: 'corp/it/itsec/sec/infra/ci-template'
-    ref: master
-    file:
-      - 'build.yml'
-      # - 'kaniko-build-cli.yml' # for build cli image stage
-      - 'update-service-chart.yml'
-      - 'sast-fortify.yml'
-      # - 'mongodb-bundle.yml' # for restore stage
-      # - 'sast-fortify.yml' # for test stage
-      # - 'sonarqube-check.yml' # for sonarqube-check stage
+entryPoints:
+  http:
+    address: ":80"
+  https:
+    address: ":443"
 
-update-service-chart:
-  variables:
-    CD_CHART_REPO: core-api-chart
+providers:
+# sub key will be file OR directory, not both.  
+  file:
+    # filename: /etc/traefik/tls.yml
+    directory: /etc/traefik/dynaConfs
+  docker:
+    endpoint: unix:///var/run/docker.sock
+    watch: true
+    exposedByDefault: false
+    defaultRule: "HostRegexp({{ index .Labels \"com.docker.compose.service\"}}.traefik.me,{{ index .Labels \"com.docker.compose.service\"}}-{dashed-ip:.*}.traefik.me)"
 
-# sonarqube-check:
-#   variables:
-#     SONAR_PROJECTKEY: "backend-monolith"  # sonarqube UI create same project_key
+# 啟用實驗性插件
+experimental:
+  plugins:
+    traefik-jwt-plugin:
+      moduleName: "github.com/traefik-plugins/traefik-jwt-plugin"
+      version: "v0.9.0"
+
+http:
+  middlewares:
+    my-traefik-jwt-plugin:
+      plugin:
+        traefik-jwt-plugin:
+          JwtHeaders:
+            X-Subject: sub
+          Keys:
+            - http://authentication-backend:3001/authentication-backend/jwt/jwks.json
+            - |
+              -----BEGIN PUBLIC KEY-----
+              MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnzyis1ZjfNB0bBgKFMSv
+              vkTtwlvBsaJq7S5wA+kzeVOVpVWwkWdVha4s38XM/pa/yr47av7+z3VTmvDRyAHc
+              aT92whREFpLv9cj5lTeJSibyr/Mrm/YtjCZVWgaOYIhwrXwKLqPr/11inWsAkfIy
+              tvHWTxZYEcXLgAXFuUuaS3uF9gEiNQwzGTU1v0FqkqTBr4B8nW3HCN47XUu0t8Y0
+              e+lf4s4OxQawWD79J9/5d3Ry0vbV3Am1FtGJiJvOwRsIfVChDpYStTcHTCMqtvWb
+              V6L11BWkpzGXSW4Hv43qa+GSYOD2QU68Mb59oSk2OB+BtOLpJofmbGEGgvmwyCI9
+              MwIDAQAB
+              -----END PUBLIC KEY-----
+          OpaAllowField: allow
+          OpaBody: "true"
+          OpaHeaders:
+            X-Allowed: allow
+          OpaHttpStatusField: allow_status_code
+          OpaResponseHeaders:
+            X-Allowed: allow
+          OpaUrl: http://opa:8181/v1/data/authz
+          PayloadFields:
+            - exp
+          Required: "true"
+# static configuration
+# core:
+#   defaultRuleSyntax: v2
+</file>
+
+<file path=".clinerules/build-testing-rules.md">
+## Brief overview
+此檔案定義了 Cline 在執行專案打包與建置測試時，應如何判斷測試成功或失敗的具體規則，以及測試的執行順序。這些規則適用於所有 Cline 執行的打包/建置流程。
+
+## 測試執行者
+- Cline 負責使用 `execute_command` 工具啟動專案的打包或建置命令。
+
+## 成功/失敗判定標準
+- **失敗條件：**
+    - 如果打包或建置命令執行完畢 (即 CLI 終端機返回到可輸入新指令的狀態)，但**沒有**從建置流程中觀察到明確的成功訊息，則該次測試應被視為**失敗**。
+- **成功條件：**
+    - 必須從建置流程中觀察到**明確的成功訊息** (例如 "Build successful", "Packaging complete", 或類似的正面確認)，才能將該次測試視為**成功**。
+    - 僅僅是命令執行完成而沒有錯誤訊息，不足以判定為成功。
+
+## 測試順序
+- **優先順序：** 必須先成功完成本機的打包與執行測試 (例如 `npm run build-front` 後，確認應用程式可以本地運行或其產出符合預期)。
+- **後續步驟：** 只有在本機測試成功後，才能進行容器化測試 (例如 `docker-compose build` 並啟動容器)。
+</file>
+
+<file path=".clinerules/project-workflow-and-testing.md">
+## Brief overview
+此檔案包含與使用者協同開發「React Traefik Dashboard v2 API Migration」專案時的特定工作流程指南、記憶庫使用規則、以及測試策略。部分規則可能也適用於其他專案。
+
+## Memory Bank Usage
+- **Mandatory Reading:** At the beginning of EVERY task, ALL core memory bank files (`projectbrief.md`, `productContext.md`, `activeContext.md`, `systemPatterns.md`, `techContext.md`, `progress.md`) MUST be read to understand the current project state. This is not optional.
+- **Accurate Updates:** Memory bank files, especially `activeContext.md` and `progress.md`, must be updated accurately and promptly to reflect the latest work done, discoveries, and next steps.
+- **Update Triggers:** Update memory bank files when:
+    - New project patterns or insights are discovered.
+    - Significant changes have been implemented.
+    - The user explicitly requests an update with "update memory bank" (ALL files must be reviewed).
+    - Context needs clarification.
+- **Reliance:** The Memory Bank is the primary source of truth for project context between sessions.
+
+## Project Context (React Traefik Dashboard)
+- **Primary Goal:** Migrate the dashboard from Traefik v1 API to v2 API.
+- **Core Technologies:** React, Redux, Node.js/Express (for backend proxy), D3.js, Docker.
+- **Key Files for Status:** `activeContext.md` and `progress.md` are critical for tracking current status and immediate next steps.
+
+## Testing Strategy
+- **Visual Testing by User:** Cline is NOT required to perform visual testing of the UI.
+- **Build/Packaging Test by Cline:** Testing conducted by Cline MUST ensure, at a minimum, that the project can be successfully built and packaged through its defined architecture (e.g., `npm run build-front`, `docker-compose build`).
+- **User's Responsibility:** The user will take over visual testing aspekts once Cline confirms the project can be packaged.
+
+## Context Verification and Assumptions
+- **Verify Before Acting:** When memory bank information seems outdated or conflicts with new findings (e.g., from `repomix-output.xml` or direct code inspection), prioritize verifying the actual state of the codebase.
+- **Do Not Assume Completion:** Do not assume a task described in the memory bank as "to-do" is still pending without first checking relevant source files if there's a possibility of prior undocumented completion. Update memory bank immediately upon such discoveries.
+
+## Communication Style
+- **Language:** Respond in繁體中文 (zh-TW).
+- **Task-Driven:** Focus on executing the user's requests step-by-step.
+- **Progress Updates:** Provide clear progress updates when significant milestones are reached or when prompted.
+</file>
+
+<file path="api/public/stylesheets/style.css">
+body {
+  padding: 50px;
+  font: 14px "Lucida Grande", Helvetica, Arial, sans-serif;
+}
+
+a {
+  color: #00B7FF;
+}
 </file>
 
 <file path="api/.gitignore">
@@ -133,17 +253,6 @@ yarn-debug.log*
 yarn-error.log*
 </file>
 
-<file path="api/public/stylesheets/style.css">
-body {
-  padding: 50px;
-  font: 14px "Lucida Grande", Helvetica, Arial, sans-serif;
-}
-
-a {
-  color: #00B7FF;
-}
-</file>
-
 <file path="config/default.json">
 {
     "db_path": "./data/cache.db"
@@ -154,119 +263,6 @@ a {
 {
     "db_path": "./test/data/cache.db"
 }
-</file>
-
-<file path="docker-compose.yml">
-version: '3.8'
-
-services:
-  app:
-    build: .
-    container_name: react-traefik-dashboard-app
-    ports:
-      - "3001:3001" # Expose backend server port
-    volumes:
-      # Mount data directory for NeDB persistence
-      - ./data:/usr/src/app/data
-      # Mount docker socket for backend's dockerode (read-only)
-      # Note: This gives the backend container access to the Docker daemon,
-      # which might be a security concern depending on the environment.
-      # Needed for the automatic URL detection feature.
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    environment:
-      - NODE_ENV=production
-      # Optionally set the default Traefik URL if auto-detection is unreliable in Docker
-      # - TRAEFIK_API_URL=http://traefik:8080
-    networks:
-      - traefik-net
-
-  traefik:
-    image: traefik:v2.10 # Use a specific Traefik v2 version
-    container_name: traefik-for-dashboard-test
-    command:
-      # Enable API and dashboard (insecure for testing only!)
-      - "--api.insecure=true"
-      - "--api.dashboard=true"
-      # Configure Docker provider
-      - "--providers.docker=true"
-      # Don't expose all containers by default, use labels
-      - "--providers.docker.exposedbydefault=false"
-      # Define entrypoints
-      - "--entrypoints.web.address=:80"
-      # Log level (optional)
-      - "--log.level=DEBUG"
-    ports:
-      # Expose web entrypoint if needed for testing services through Traefik
-      - "80:80"
-      # Expose dashboard/API port ONLY if you need to access it directly from host
-      # - "8080:8080" # Usually not needed, app service accesses it internally
-    volumes:
-      # Mount Docker socket to allow Traefik to discover services
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-    networks:
-      - traefik-net
-    # Add labels if you want Traefik to route to the dashboard app itself (optional)
-    # labels:
-    #   - "traefik.enable=true"
-    #   - "traefik.http.routers.dashboard-app.rule=Host(`dashboard.localhost`)" # Example rule
-    #   - "traefik.http.routers.dashboard-app.service=dashboard-app-svc"
-    #   - "traefik.http.services.dashboard-app-svc.loadbalancer.server.port=3001"
-
-networks:
-  traefik-net:
-    driver: bridge
-</file>
-
-<file path="memory-bank/activeContext.md">
-# Active Context: React Traefik Dashboard v2 API Migration
-
-## 1. Current Work Focus
-
-- **Frontend Integration (Expansion):** Expanding Redux reducers and components to utilize all available Traefik v2 backend proxy endpoints and actions.
-- **Memory Bank Update:** Ensuring Memory Bank accurately reflects the latest project status.
-
-## 2. Recent Changes
-
-- Analyzed `repomix-output.xml`.
-- Reviewed `api/routes/api.js` and confirmed that **all required backend proxy routes for Traefik v2 API endpoints are implemented.**
-- Reviewed `src/actions/index.js` and confirmed that **all action types, action creators, and data fetching logic for these v2 endpoints are implemented.**
-- Updated `progress.md` to reflect the completion of backend proxy work and frontend actions, adjusting overall progress.
-- Updated `activeContext.md` (this file) to reflect the current status.
-- Confirmed `systemPatterns.md` and `techContext.md` are up-to-date.
-
-## 3. Next Steps (Immediate)
-
-- **Frontend - Redux Reducers Expansion:**
-    - Update reducers in `src/reducers/index.js` to handle new actions (for overview, entrypoints, middlewares, TLS certificates) and store this new data in the Redux state.
-- **Frontend - Component Integration:**
-    - Update `src/components/ThreeJSFlow.js` and/or other components to visualize/display the new data types (overview, entrypoints, middlewares, TLS certificates).
-    - Adapt search/filter logic to include these new data types.
-- **Testing:**
-    - Test frontend data fetching (via actions), state updates (via reducers), and display for all v2 data types.
-
-## 4. Active Decisions & Considerations
-
-- **Memory Bank Synchronization:** Ensuring Memory Bank accurately reflects the codebase is paramount.
-- **API Completeness:** The goal is to proxy and utilize all relevant Traefik v2 API endpoints as defined in `productContext.md`.
-- **Frontend Data Handling:** Efficiently fetching, storing, and rendering multiple types of API data (routers, services, overview, etc.) in Redux and React components.
-- **Backward Compatibility (Out of Scope):** Focus is solely on Traefik v2.
-
-## 5. Important Patterns & Preferences
-
-- **Backend Proxy:** Node.js/Express backend in `api/` acts as a simple proxy to the Traefik API. New endpoints will follow this pattern.
-- **Frontend State Management:** Redux with `redux-thunk` for asynchronous actions. Data is fetched via `isomorphic-fetch`.
-- **Component-Based UI:** React components in `src/components/` and `src/containers/`.
-- **Visualization:** D3.js via a custom `Tree` class, integrated into the `ThreeJSFlow.js` React component.
-
-## 6. Learnings & Insights
-
-- **Project State Discrepancy:** Initial Memory Bank state was behind actual codebase progress, highlighting the importance of tools like `repomix-output.xml` for context recovery.
-- **Backend Progress (Completed):** All planned proxy routes in `api/routes/api.js` for Traefik v2 API endpoints are implemented.
-- **Frontend Progress:**
-    - `src/actions/index.js`: All actions for v2 data implemented.
-    - `src/reducers/index.js`: Handles v2 routers and services; needs expansion.
-    - `src/components/ThreeJSFlow.js`: Handles v2 routers and services; needs expansion.
-- **Git Repository:** Project will be pushed to `ssh://git@e4e-vcs.deltaww.com:8080/andrew-test/infra/react-traefik.git`.
 </file>
 
 <file path="memory-bank/productContext.md">
@@ -315,75 +311,6 @@ The current React dashboard provides a visual interface for monitoring Traefik v
 - **URL Configuration:** Handled by backend `GET/PUT /api/url`, likely requires minimal changes unless v2 API default port/path differs significantly.
 </file>
 
-<file path="memory-bank/progress.md">
-# Progress: React Traefik Dashboard v2 API Migration
-
-## 1. Current Status
-
-- **Phase:** Memory Bank Synchronization, Backend Migration (Completion), Frontend Integration (Expansion).
-- **Overall Progress:** ~60% (All backend proxies implemented. Frontend actions for all v2 data types implemented. Frontend integration for routers/services largely done. Reducer updates and full component integration for other v2 data types are next).
-- **Memory Bank:** Updated to reflect current project state.
-
-## 2. What Works (Current State - Mid-Migration)
-
-- **Backend Proxy (`api/routes/api.js` - Complete for planned V2 endpoints):**
-    - Node.js/Express backend successfully proxies:
-        - `GET /api/v2/http/routers` to Traefik v2 `/api/http/routers`.
-        - `GET /api/v2/http/services` to Traefik v2 `/api/http/services`.
-        - `GET /api/v2/overview` to Traefik v2 `/api/overview`.
-        - `GET /api/v2/entrypoints` to Traefik v2 `/api/entrypoints`.
-        - `GET /api/v2/http/middlewares` to Traefik v2 `/api/http/middlewares`.
-        - `GET /api/v2/tls/certificates` to Traefik v2 `/api/tls/certificates`.
-    - URL management (`GET/PUT /api/url`) remains functional.
-- **Frontend Integration (Partial):**
-    - Redux actions (`src/actions/index.js`) can fetch all planned Traefik v2 data types (routers, services, overview, entrypoints, middlewares, TLS certificates) via the backend proxy.
-    - Redux reducers (`src/reducers/index.js`) can store v2 routers and services data. (Needs expansion for other types).
-    - `AsyncApp.js` container handles fetching and polling of v2 data (currently focused on routers/services, actions now support more).
-    - `ThreeJSFlow.js` component can visualize v2 routers and services, including search/filter functionality for this data.
-- The basic React/Redux structure is in place and adapted for initial v2 data.
-
-## 3. What's Left to Build/Migrate
-
-- **Memory Bank Update (Completed for this cycle):**
-    - `activeContext.md` updated.
-    - `progress.md` updated (This update).
-    - `systemPatterns.md` confirmed accurate.
-    - `techContext.md` confirmed accurate.
-- **Implementation (Backend - Completed):**
-    - All planned Traefik v2 API proxy routes in `api/routes/api.js` are implemented.
-- **Implementation (Frontend - Expansion & Refinement - Next Steps):**
-    - **Redux State:**
-        - Expand Redux state in `src/reducers/index.js` to hold overview, entrypoints, middlewares, and TLS certificates data.
-    - **Redux Actions (Completed):**
-        - `src/actions/index.js` includes action types and creators for fetching overview, entrypoints, middlewares, and TLS certificates.
-        - `fetchTraefikV2Data` function fetches all these data types concurrently.
-    - **Redux Reducers (Next Step):**
-        - Update `src/reducers/index.js` to handle new actions and store the fetched overview, entrypoints, middlewares, and TLS certificates data.
-    - **Component Integration:**
-        - Modify `src/components/ThreeJSFlow.js` (and potentially create new components) to display/visualize overview, entrypoints, middlewares, and TLS certificates.
-        - Adapt search/filter logic in `ThreeJSFlow.js` or reducers to include these new data types.
-- **Testing:**
-    - Test all new backend proxy endpoints.
-    - Test frontend data fetching and display for ALL v2 data types (routers, services, overview, entrypoints, middlewares, TLS).
-    - Verify search and filtering functionality across all data types.
-    - Ensure UI remains responsive and handles errors gracefully.
-- **Documentation:**
-    - Complete Memory Bank updates.
-    - Update `README.md` with v2 information, setup, and usage instructions (Later).
-
-## 4. Known Issues / Blockers
-
-- **Lack of v1/v2 Instance for Direct Comparison/Testing:** Still need access to running Traefik v1 (for baseline comparison if any v1 behavior needs to be perfectly replicated) and a fully configured v2 (for development/testing against all API endpoints) instances. The `docker-compose.yml` provides a v2 instance, which is good for basic testing.
-- **API Granularity:** v2 API requires fetching and combining data from multiple endpoints. This is partially handled for routers/services, needs to be extended for other data types.
-- **React Version (v16, not v15 as previously thought based on package.json):** While `package.json` shows React 16.14.0, which is more modern than v15, it's still not the latest. Care should be taken with new patterns or libraries. (Correction: `package.json` shows `react: "^16.14.0"`, `src/actions/index.js` and `src/reducers/index.js` were updated based on `repomix-output.xml` which confirmed this version).
-
-## 5. Evolution of Project Decisions
-
-- **[Date]:** Initialized Memory Bank structure.
-- **[Date]:** Initial code analysis completed.
-- **[Current Date]:** Analyzed `repomix-output.xml`. Confirmed all backend proxies are implemented. Reviewed `src/actions/index.js` and confirmed all necessary actions and data fetching logic for v2 APIs are implemented. Updated plan to focus on Redux reducers and component integration.
-</file>
-
 <file path="memory-bank/projectbrief.md">
 # Project Brief: React Traefik Dashboard v2 API Migration
 
@@ -420,176 +347,6 @@ The primary goal of this project is to update the existing React-based Traefik d
 - All dashboard features function as expected when connected to a Traefik v2 instance.
 - No remaining Traefik v1 API calls in the frontend codebase.
 - Codebase is updated and follows modern React practices where applicable during the refactoring.
-</file>
-
-<file path="memory-bank/systemPatterns.md">
-# System Patterns: React Traefik Dashboard v2 API Migration
-
-## 1. System Architecture Overview
-
-*(Based on `repomix-output.xml` analysis and current project state)*
-
-- **Frontend:** React application (`src/`) using Create React App (`react-scripts`).
-    - **UI Components:** Located in `src/components/` (e.g., `ThreeJSFlow.js`, `Search.js`, `UrlInput.js`).
-    - **Containers:** Smart components in `src/containers/` (e.g., `AsyncApp.js`, `Root.js`) connecting UI to Redux.
-    - **State Management:** Redux (`src/actions/`, `src/reducers/`, `src/store/`) with `redux-thunk` for async operations.
-    - **API Interaction:** Handled within Redux actions (`src/actions/index.js`) using `isomorphic-fetch`, calling the backend proxy.
-- **Backend API (`api/`):** Node.js/Express application.
-    - **Purpose:** Acts as a proxy to the Traefik API and manages Traefik URL configuration (stored in NeDB via `config/default.json`).
-    - **Routes (`api/routes/api.js`):**
-        - `GET /api/url`: Retrieves the configured Traefik API URL.
-        - `PUT /api/url`: Saves/updates the Traefik API URL.
-        - `GET /api/v2/http/routers`: Proxies to Traefik v2 `/api/http/routers`. (Implemented)
-        - `GET /api/v2/http/services`: Proxies to Traefik v2 `/api/http/services`. (Implemented)
-        - (Planned: `/api/v2/overview`, `/api/v2/entrypoints`, `/api/v2/http/middlewares`, `/api/v2/tls/certificates`)
-- **Configuration:** `config` npm package with `config/default.json` and `config/test.json`.
-- **Build/Deployment:** Docker (`Dockerfile`, `docker-compose.yml`) for containerization. `npm run build-front` (via `react-scripts build`) for frontend.
-
-```mermaid
-graph TD
-    subgraph Frontend (React App - src/)
-        UI[UI Components - src/components] --> Containers
-        Containers[Containers - src/containers] --> Actions[Redux Actions - src/actions]
-        Actions --> Reducers[Redux Reducers - src/reducers]
-        Reducers --> ReduxStore[Redux Store - src/store]
-        Containers --> ReduxStore
-    end
-
-    subgraph Backend_Proxy (Node.js/Express - api/)
-        APIRoutes[API Routes - api/routes/api.js] --> AppLogic[App Logic - api/app.js]
-        AppLogic --> DBConfig[URL Config (NeDB) - config/]
-        
-        APIRoutes -- "/api/url" --> DBConfig
-        APIRoutes -- "/api/v2/http/routers" --> TraefikAPI_V2_Routers
-        APIRoutes -- "/api/v2/http/services" --> TraefikAPI_V2_Services
-        APIRoutes -- "/api/v2/overview (planned)" --> TraefikAPI_V2_Overview
-        APIRoutes -- "/api/v2/entrypoints (planned)" --> TraefikAPI_V2_Entrypoints
-        APIRoutes -- "/api/v2/http/middlewares (planned)" --> TraefikAPI_V2_Middlewares
-        APIRoutes -- "/api/v2/tls/certificates (planned)" --> TraefikAPI_V2_TLS
-    end
-
-    subgraph Traefik_Instance (Traefik v2)
-        TraefikAPI_V2_Routers["/api/http/routers"]
-        TraefikAPI_V2_Services["/api/http/services"]
-        TraefikAPI_V2_Overview["/api/overview"]
-        TraefikAPI_V2_Entrypoints["/api/entrypoints"]
-        TraefikAPI_V2_Middlewares["/api/http/middlewares"]
-        TraefikAPI_V2_TLS["/api/tls/certificates"]
-    end
-
-    UserBrowser[User Browser] --> Frontend
-    Frontend -- HTTP Requests --> Backend_Proxy
-    
-    %% Style for implemented vs planned
-    style TraefikAPI_V2_Routers fill:#ccffcc,stroke:#333,stroke-width:2px
-    style TraefikAPI_V2_Services fill:#ccffcc,stroke:#333,stroke-width:2px
-    style TraefikAPI_V2_Overview fill:#ffffcc,stroke:#333,stroke-width:2px
-    style TraefikAPI_V2_Entrypoints fill:#ffffcc,stroke:#333,stroke-width:2px
-    style TraefikAPI_V2_Middlewares fill:#ffffcc,stroke:#333,stroke-width:2px
-    style TraefikAPI_V2_TLS fill:#ffffcc,stroke:#333,stroke-width:2px
-```
-
-*(Diagram and description updated to reflect current implementation and planned additions for backend proxy.)*
-
-## 2. Key Technical Decisions (Current)
-
-- **Framework:** React (v16.14.0) for the frontend.
-- **State Management:** Redux with `redux-thunk`.
-- **Backend:** Node.js/Express for API proxy and URL configuration.
-- **Styling:** Standard CSS files.
-- **Visualization:** D3.js (v4) integrated into `ThreeJSFlow.js` React component via a custom `Tree` class.
-- **API Client:** `isomorphic-fetch`.
-
-## 3. Design Patterns
-
-- **Container/Presentational Component Pattern:** Evident from `src/components/` vs `src/containers/`.
-- **Action-Reducer Pattern:** Core of Redux implementation.
-- **Proxy Pattern:** Backend API acts as a proxy to the Traefik API.
-- **Module Pattern:** Used in Node.js backend.
-
-## 4. Component Relationships (High-Level)
-
-- `Root.js` initializes the Redux Provider.
-- `AsyncApp.js` is the main application container, managing API calls via Redux actions and passing data to presentational components.
-- `UrlInput.js` allows users to set the Traefik API URL, which is persisted by the backend.
-- `Search.js` provides filtering capabilities for the displayed Traefik data.
-- `ThreeJSFlow.js` is responsible for rendering the D3.js visualization of Traefik data (routers, services currently; to be expanded).
-
-## 5. Critical Implementation Paths (Current & Next Steps)
-
-- **Backend API Proxy Expansion:**
-    - Add routes in `api/routes/api.js` for `/overview`, `/entrypoints`, `/http/middlewares`, `/tls/certificates`. (Next)
-- **Frontend Data Integration Expansion:**
-    - **Actions (`src/actions/index.js`):** Add new action types and creators to fetch the additional v2 data types through the new backend proxy endpoints.
-    - **Reducers (`src/reducers/index.js`):** Update reducers to store this new data (overview, entrypoints, middlewares, TLS certificates) in the Redux state.
-    - **Components (`src/components/ThreeJSFlow.js`, etc.):** Modify components to consume and visualize/display this new data. Update filtering logic.
-- **Configuration (`src/Conf.js`):** `API_URL` is empty, relying on relative paths to the backend proxy. Traefik URL itself is managed via `GET/PUT /api/url`. This setup is stable.
-- **Data Transformation & Consumption:** Data from Traefik v2 API (via backend proxy) is processed in Redux actions/reducers and consumed by React components. This pattern will be extended for new data types.
-</file>
-
-<file path="memory-bank/techContext.md">
-# Technical Context: React Traefik Dashboard v2 API Migration
-
-## 1. Core Technologies
-
-- **Frontend:**
-    - React (`react: "^16.14.0"` as per `package.json`)
-    - Redux (`redux: "^4.2.0"`, `react-redux: "^5.0.4"`) for state management.
-    - `redux-thunk` for asynchronous actions.
-    - `isomorphic-fetch` for HTTP requests.
-    - D3.js (`d3: "^4.8.0"`) for visualization, integrated into `ThreeJSFlow.js`.
-    - Standard CSS.
-- **Backend (`api/` directory):**
-    - Node.js (Dockerfile uses `node:18-alpine`).
-    - Express (`express: "~4.15.2"`).
-    - `config` npm package for configuration management.
-    - `nedb` for simple database (URL persistence).
-    - `request` for proxying HTTP requests.
-    - `dockerode` for Docker interaction (automatic URL discovery).
-- **Build/Development:**
-    - npm (based on `package-lock.json` and scripts in `package.json`).
-    - Create React App scripts (`react-scripts: "4.0.3"`) for frontend build (`build-front`) and dev server (`start-front`).
-    - Docker (`Dockerfile`, `docker-compose.yml`) for containerization of the application and a test Traefik v2 instance.
-- **Testing:**
-    - Mocha (`mocha: "^3.4.1"`) with Chai (`chai: "^3.5.0"`, `chai-http: "^3.0.0"`) for backend API tests (`test/test.js`).
-    - Jest (via `react-scripts test --env=jsdom`) for frontend component tests (e.g., `App.test.js`).
-
-## 2. Development Setup (Confirmed & Assumptions)
-
-- **Prerequisites:** Node.js (v18 recommended), npm, Docker.
-- **Git Repository:** `ssh://git@e4e-vcs.deltaww.com:8080/andrew-test/infra/react-traefik.git` (Project is intended to be pushed here).
-- **Installation:** Run `npm install` in the root directory. The `api/` directory does not have its own `package.json`, so root-level install covers backend dependencies too.
-- **Running Application (Docker Compose - Recommended for Integrated Testing):**
-    - `docker-compose up --build` will build and run both the `app` (React frontend + Node.js backend proxy) and a `traefik` v2 service.
-    - The application will be accessible at `http://localhost:3001`.
-    - Traefik API (for the test instance) is at `http://traefik:8080` (internally within Docker network) or potentially `http://localhost:8080` if port is exposed from `docker-compose.yml`.
-- **Running Frontend (Standalone):** `npm run start-front` (runs `react-scripts start` on port 3000, proxies to backend on 3001).
-- **Running Backend (Standalone):** `npm run start-api` (runs `node ./api/bin/www` on port 3001).
-- **Running Tests:**
-    - Backend API tests: `npm test` (runs Mocha tests).
-    - Frontend tests: `npm run test-front` (runs Jest tests).
-- **Traefik Instance:**
-    - For development and testing, `docker-compose.yml` provides a Traefik v2.10 instance.
-    - The application's backend can auto-detect Traefik URL if running in Docker with socket mounted, or URL can be manually set via UI.
-
-## 3. Technical Constraints & Considerations
-
-- **Browser Compatibility:** Target modern web browsers. (Specifics still TBD, but React 16 has good compatibility).
-- **API Rate Limiting:** Be mindful of potential rate limits on the Traefik API, especially if using polling.
-- **Data Volume:** Traefik API responses can be large. Efficient data handling and rendering are important.
-- **Authentication/Authorization:** How does the dashboard authenticate with the Traefik API? (v1 might be unauthenticated by default, v2 might have options). Needs investigation.
-- **CORS:** Cross-Origin Resource Sharing might be a factor if the dashboard is served from a different domain/port than the Traefik API. The backend (`api/`) might be acting as a CORS proxy.
-
-## 4. Dependencies (High-Level - Check `package.json` for specifics)
-
-- **Frontend:** `react`, `react-dom`, `redux`, `react-redux`, `redux-thunk` (likely), `three`, potentially `axios`, `react-router-dom`.
-- **Backend (`api/`):** `express`, `config`, `morgan`, `debug`, potentially `cors`, `node-fetch` or `axios`.
-
-## 5. Tool Usage Patterns (To Be Discovered)
-
-- Linting/Formatting tools (e.g., ESLint, Prettier).
-- Specific debugging techniques used.
-- Deployment scripts or CI/CD setup (if any).
 </file>
 
 <file path="src/components/Search.js">
@@ -634,46 +391,113 @@ Search.propTypes = {
 {"name":"url","value":"https://demo6651367.mockable.io","_id":"QKFLV14BHDxbe2hw"}
 </file>
 
-<file path="api/app.js">
-var express = require('express');
-var path = require('path');
-var logger = require('morgan');
-var bodyParser = require('body-parser');
-var cors = require('cors');
+<file path=".gitlab-ci.yml">
+image: "e4e-harbor.deltaww.com/docker-hub/library/alpine:3.13"
 
-var api = require('./routes/api');
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_HOST: "tcp://localhost:2375"
+stages:
+  - build
+  - deploy
+  - sast
 
-var app = express();
-app.use(cors());
+include:
+  - project: 'corp/it/itsec/sec/infra/ci-template'
+    ref: master
+    file:
+      - 'build.yml'
+      # - 'kaniko-build-cli.yml' # for build cli image stage
+      - 'update-service-chart.yml'
+      - 'sast-fortify.yml'
+      # - 'mongodb-bundle.yml' # for restore stage
+      # - 'sast-fortify.yml' # for test stage
+      # - 'sonarqube-check.yml' # for sonarqube-check stage
 
-// uncomment after placing your favicon in /public
-//app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
-app.use(logger('dev'));
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: false }));
-app.use(express.static(path.join(__dirname, '../build')));
+update-service-chart:
+  variables:
+    CD_CHART_REPO: core-api-chart
 
-app.use('/api', api);
+# sonarqube-check:
+#   variables:
+#     SONAR_PROJECTKEY: "backend-monolith"  # sonarqube UI create same project_key
+</file>
 
-// catch 404 and forward to error handler
-app.use(function(req, res, next) {
-  var err = new Error('Not Found');
-  err.status = 404;
-  next(err);
-});
+<file path=".gitpod.yml">
+# This configuration file was automatically generated by Gitpod.
+# Please adjust to your needs (see https://www.gitpod.io/docs/introduction/learn-gitpod/gitpod-yaml)
+# and commit this file to your remote git repository to share the goodness with others.
 
-// error handler
-app.use(function(err, req, res, next) {
-  // set locals, only providing error in development
-  res.locals.message = err.message;
-  res.locals.error = req.app.get('env') === 'development' ? err : {};
+# Learn more from ready-to-use templates: https://www.gitpod.io/docs/introduction/getting-started/quickstart
 
-  // render the error page
-  res.status(err.status || 500);
-  res.json(err);
-});
+tasks:
+  - init: npm install
+    command: npm run start
+</file>
 
-module.exports = app;
+<file path="docker-compose.yml">
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: react-traefik-dashboard-app
+    ports:
+      - "3001:3001" # Expose backend server port
+    volumes:
+      # Mount data directory for NeDB persistence
+      - ./data:/usr/src/app/data
+      # Mount docker socket for backend's dockerode (read-only)
+      # Note: This gives the backend container access to the Docker daemon,
+      # which might be a security concern depending on the environment.
+      # Needed for the automatic URL detection feature.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - NODE_ENV=production
+      # Optionally set the default Traefik URL if auto-detection is unreliable in Docker
+      # - TRAEFIK_API_URL=http://traefik:8080
+    networks:
+      - traefik-net
+
+  traefik:
+    image: traefik:v2.11.24 # Use a specific Traefik v2 version
+    container_name: traefik-for-dashboard-test
+    command:
+      # Enable API and dashboard (insecure for testing only!)
+      - "--api.insecure=true"
+      - "--api.dashboard=true"
+      # Configure Docker provider
+      - "--providers.docker=true"
+      # Don't expose all containers by default, use labels
+      - "--providers.docker.exposedbydefault=false"
+      # Define entrypoints
+      - "--entrypoints.web.address=:80"
+      # Log level (optional)
+      - "--log.level=DEBUG"
+    ports:
+      # Expose web entrypoint if needed for testing services through Traefik
+      - "80:80"
+      - "443:443"
+      # Expose dashboard/API port ONLY if you need to access it directly from host
+      - "8080:8080" # Usually not needed, app service accesses it internally
+    volumes:
+      # Mount Docker socket to allow Traefik to discover services
+      - "./traefik/conf/traefik.yml:/etc/traefik/traefik.yml"
+      - "./traefik/conf/dynaConfs:/etc/traefik/dynaConfs"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      - traefik-net
+    # Add labels if you want Traefik to route to the dashboard app itself (optional)
+    # labels:
+    #   - "traefik.enable=true"
+    #   - "traefik.http.routers.dashboard-app.rule=Host(`dashboard.localhost`)" # Example rule
+    #   - "traefik.http.routers.dashboard-app.service=dashboard-app-svc"
+    #   - "traefik.http.services.dashboard-app-svc.loadbalancer.server.port=3001"
+
+networks:
+  traefik-net:
+    driver: bridge
 </file>
 
 <file path="api/bin/www">
@@ -769,6 +593,315 @@ function onListening() {
 }
 </file>
 
+<file path="api/app.js">
+var express = require('express');
+var path = require('path');
+var logger = require('morgan');
+var bodyParser = require('body-parser');
+var cors = require('cors');
+
+var api = require('./routes/api');
+
+var app = express();
+app.use(cors());
+
+// uncomment after placing your favicon in /public
+//app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
+app.use(logger('dev'));
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(express.static(path.join(__dirname, '../build')));
+
+app.use('/api', api);
+
+// catch 404 and forward to error handler
+app.use(function(req, res, next) {
+  var err = new Error('Not Found');
+  err.status = 404;
+  next(err);
+});
+
+// error handler
+app.use(function(err, req, res, next) {
+  // set locals, only providing error in development
+  res.locals.message = err.message;
+  res.locals.error = req.app.get('env') === 'development' ? err : {};
+
+  // render the error page
+  res.status(err.status || 500);
+  res.json(err);
+});
+
+module.exports = app;
+</file>
+
+<file path="memory-bank/activeContext.md">
+# Active Context: React Traefik Dashboard v2 API Migration
+
+## 1. Current Work Focus
+
+- **Finalizing Analysis & Handover for Testing:** Concluding the analysis of the current codebase, ensuring all findings are documented, and preparing for the user to take over for build/packaging tests and subsequent visual testing.
+- **Memory Bank Update:** Ensuring Memory Bank accurately reflects the latest project status and testing strategy.
+
+## 2. Recent Changes
+
+- Analyzed `repomix-output.xml`.
+- Confirmed backend API proxies (`api/routes/api.js`) for all required Traefik v2 endpoints are implemented.
+- Confirmed frontend Redux actions (`src/actions/index.js`) for fetching all v2 data types are implemented.
+- Confirmed frontend Redux reducers (`src/reducers/index.js`) for storing all v2 data types in the state are implemented.
+- Reviewed `src/components/ThreeJSFlow.js` and found **substantial existing integration for accessing, filtering, and visualizing all planned v2 data types** (overview, entrypoints, middlewares, TLS certificates, in addition to routers and services).
+- Updated `progress.md` to reflect the advanced state of component integration, adjusting overall progress.
+- Updated `activeContext.md` (this file) to reflect the current status.
+- Confirmed `systemPatterns.md` and `techContext.md` are up-to-date.
+- Created `.clinerules/project-workflow-and-testing.md` to document project-specific guidelines, including the new testing strategy.
+
+## 3. Next Steps (Immediate)
+
+- **Confirm Code Readiness for Build Test:** Based on analysis, the core migration logic (backend proxies, Redux store, component data handling) appears to be in place.
+- **Handover to User for Testing:**
+    - Cline's responsibility for this phase concludes with ensuring the conceptual completeness of the code for migration.
+    - User will perform build/packaging tests (e.g., `npm run build-front`, `docker-compose build`).
+    - User will then perform visual testing of the UI.
+- **UI Refinement (Post-Testing by User):** Based on user's visual testing feedback, further UI refinements can be planned.
+- **Code Review & Cleanup (User Discretion):** User may choose to review `ThreeJSFlow.js` for refactoring.
+
+## 4. Active Decisions & Considerations
+
+- **Memory Bank Synchronization:** Ensuring Memory Bank accurately reflects the codebase is paramount.
+- **API Completeness:** The goal is to proxy and utilize all relevant Traefik v2 API endpoints as defined in `productContext.md`.
+- **Frontend Data Handling:** Efficiently fetching, storing, and rendering multiple types of API data (routers, services, overview, etc.) in Redux and React components.
+- **Backward Compatibility (Out of Scope):** Focus is solely on Traefik v2.
+
+## 5. Important Patterns & Preferences
+
+- **Backend Proxy:** Node.js/Express backend in `api/` acts as a simple proxy to the Traefik API. New endpoints will follow this pattern.
+- **Frontend State Management:** Redux with `redux-thunk` for asynchronous actions. Data is fetched via `isomorphic-fetch`.
+- **Component-Based UI:** React components in `src/components/` and `src/containers/`.
+- **Visualization:** D3.js via a custom `Tree` class, integrated into the `ThreeJSFlow.js` React component.
+
+## 6. Learnings & Insights
+
+- **Project State Discrepancy:** Initial Memory Bank state was behind actual codebase progress, highlighting the importance of tools like `repomix-output.xml` for context recovery.
+- **Backend Progress (Completed):** All planned proxy routes in `api/routes/api.js` for Traefik v2 API endpoints are implemented.
+- **Frontend Progress:**
+    - `src/actions/index.js`: All actions for v2 data implemented (Completed).
+    - `src/reducers/index.js`: Handles all v2 data types (Completed).
+    - `src/components/ThreeJSFlow.js`: Substantial integration for all v2 data types exists; primary focus is now on refinement and testing.
+- **Git Repository:** Project will be pushed to `ssh://git@e4e-vcs.deltaww.com:8080/andrew-test/infra/react-traefik.git`.
+</file>
+
+<file path="memory-bank/systemPatterns.md">
+# System Patterns: React Traefik Dashboard v2 API Migration
+
+## 1. System Architecture Overview
+
+*(Based on `repomix-output.xml` analysis and current project state)*
+
+- **Frontend:** React application (`src/`) using Create React App (`react-scripts`).
+    - **UI Components:** Located in `src/components/` (e.g., `ThreeJSFlow.js`, `Search.js`, `UrlInput.js`).
+    - **Containers:** Smart components in `src/containers/` (e.g., `AsyncApp.js`, `Root.js`) connecting UI to Redux.
+    - **State Management:** Redux (`src/actions/`, `src/reducers/`, `src/store/`) with `redux-thunk` for async operations.
+    - **API Interaction:** Handled within Redux actions (`src/actions/index.js`) using `isomorphic-fetch`, calling the backend proxy.
+- **Backend API (`api/`):** Node.js/Express application.
+    - **Purpose:** Acts as a proxy to the Traefik API and manages Traefik URL configuration (stored in NeDB via `config/default.json`).
+    - **Routes (`api/routes/api.js`):**
+        - `GET /api/url`: Retrieves the configured Traefik API URL.
+        - `PUT /api/url`: Saves/updates the Traefik API URL.
+        - `GET /api/v2/http/routers`: Proxies to Traefik v2 `/api/http/routers`. (Implemented)
+        - `GET /api/v2/http/services`: Proxies to Traefik v2 `/api/http/services`. (Implemented)
+        - `GET /api/v2/overview`: Proxies to Traefik v2 `/api/overview`. (Implemented)
+        - `GET /api/v2/entrypoints`: Proxies to Traefik v2 `/api/entrypoints`. (Implemented)
+        - `GET /api/v2/http/middlewares`: Proxies to Traefik v2 `/api/http/middlewares`. (Implemented)
+        - `GET /api/v2/tls/certificates`: Proxies to Traefik v2 `/api/tls/certificates`. (Implemented)
+- **Configuration:** `config` npm package with `config/default.json` and `config/test.json`.
+- **Build/Deployment:** Docker (`Dockerfile`, `docker-compose.yml`) for containerization. `npm run build-front` (via `react-scripts build`) for frontend.
+
+```mermaid
+graph TD
+    subgraph Frontend (React App - src/)
+        UI[UI Components - src/components] --> Containers
+        Containers[Containers - src/containers] --> Actions[Redux Actions - src/actions]
+        Actions --> Reducers[Redux Reducers - src/reducers]
+        Reducers --> ReduxStore[Redux Store - src/store]
+        Containers --> ReduxStore
+    end
+
+    subgraph Backend_Proxy (Node.js/Express - api/)
+        APIRoutes[API Routes - api/routes/api.js] --> AppLogic[App Logic - api/app.js]
+        AppLogic --> DBConfig[URL Config (NeDB) - config/]
+        
+        APIRoutes -- "/api/url" --> DBConfig
+        APIRoutes -- "/api/v2/http/routers" --> TraefikAPI_V2_Routers
+        APIRoutes -- "/api/v2/http/services" --> TraefikAPI_V2_Services
+        APIRoutes -- "/api/v2/overview" --> TraefikAPI_V2_Overview
+        APIRoutes -- "/api/v2/entrypoints" --> TraefikAPI_V2_Entrypoints
+        APIRoutes -- "/api/v2/http/middlewares" --> TraefikAPI_V2_Middlewares
+        APIRoutes -- "/api/v2/tls/certificates" --> TraefikAPI_V2_TLS
+    end
+
+    subgraph Traefik_Instance (Traefik v2)
+        TraefikAPI_V2_Routers["/api/http/routers"]
+        TraefikAPI_V2_Services["/api/http/services"]
+        TraefikAPI_V2_Overview["/api/overview"]
+        TraefikAPI_V2_Entrypoints["/api/entrypoints"]
+        TraefikAPI_V2_Middlewares["/api/http/middlewares"]
+        TraefikAPI_V2_TLS["/api/tls/certificates"]
+    end
+
+    UserBrowser[User Browser] --> Frontend
+    Frontend -- HTTP Requests --> Backend_Proxy
+    
+    %% Style for implemented
+    style TraefikAPI_V2_Routers fill:#ccffcc,stroke:#333,stroke-width:2px
+    style TraefikAPI_V2_Services fill:#ccffcc,stroke:#333,stroke-width:2px
+    style TraefikAPI_V2_Overview fill:#ccffcc,stroke:#333,stroke-width:2px
+    style TraefikAPI_V2_Entrypoints fill:#ccffcc,stroke:#333,stroke-width:2px
+    style TraefikAPI_V2_Middlewares fill:#ccffcc,stroke:#333,stroke-width:2px
+    style TraefikAPI_V2_TLS fill:#ccffcc,stroke:#333,stroke-width:2px
+```
+
+*(Diagram and description updated to reflect that all backend proxy routes are implemented.)*
+
+## 2. Key Technical Decisions (Current)
+
+- **Framework:** React (v16.14.0) for the frontend.
+- **State Management:** Redux with `redux-thunk`.
+- **Backend:** Node.js/Express for API proxy and URL configuration.
+- **Styling:** Standard CSS files.
+- **Visualization:** D3.js (v4) integrated into `ThreeJSFlow.js` React component via a custom `Tree` class.
+- **API Client:** `isomorphic-fetch`.
+
+## 3. Design Patterns
+
+- **Container/Presentational Component Pattern:** Evident from `src/components/` vs `src/containers/`.
+- **Action-Reducer Pattern:** Core of Redux implementation.
+- **Proxy Pattern:** Backend API acts as a proxy to the Traefik API.
+- **Module Pattern:** Used in Node.js backend.
+
+## 4. Component Relationships (High-Level)
+
+- `Root.js` initializes the Redux Provider.
+- `AsyncApp.js` is the main application container, managing API calls via Redux actions and passing data to presentational components.
+- `UrlInput.js` allows users to set the Traefik API URL, which is persisted by the backend.
+- `Search.js` provides filtering capabilities for the displayed Traefik data.
+- `ThreeJSFlow.js` is responsible for rendering the D3.js visualization of Traefik data (all v2 data types are now being integrated).
+
+## 5. Critical Implementation Paths (Current & Next Steps)
+
+- **Backend API Proxy (Completed):**
+    - All routes in `api/routes/api.js` for `/overview`, `/entrypoints`, `/http/middlewares`, `/tls/certificates`, `/http/routers`, and `/http/services` are implemented.
+- **Frontend Data Integration (Completed for Actions & Reducers, Component Integration in Progress):**
+    - **Actions (`src/actions/index.js` - Completed):** Action types and creators for all v2 data types are implemented.
+    - **Reducers (`src/reducers/index.js` - Completed):** Reducers store all v2 data types in the Redux state.
+    - **Components (`src/components/ThreeJSFlow.js`, etc. - In Progress/Refinement):** Components are being updated to consume and visualize/display all v2 data. Filtering logic is also being adapted.
+- **Configuration (`src/Conf.js`):** `API_URL` is empty, relying on relative paths to the backend proxy. Traefik URL itself is managed via `GET/PUT /api/url`. This setup is stable.
+- **Data Transformation & Consumption:** Data from Traefik v2 API (via backend proxy) is processed in Redux actions/reducers and consumed by React components. This pattern will be extended for new data types.
+</file>
+
+<file path="memory-bank/techContext.md">
+# Technical Context: React Traefik Dashboard v2 API Migration
+
+## 1. Core Technologies
+
+- **Frontend:**
+    - React (`react: "^16.14.0"` as per `package.json`)
+    - Redux (`redux: "^4.2.0"`, `react-redux: "^5.0.4"`) for state management.
+    - `redux-thunk` for asynchronous actions.
+    - `isomorphic-fetch` for HTTP requests.
+    - D3.js (`d3: "^4.8.0"`) for visualization, integrated into `ThreeJSFlow.js`.
+    - Standard CSS.
+- **Backend (`api/` directory):**
+    - Node.js (Dockerfile uses `node:18-alpine`).
+    - Express (`express: "~4.15.2"`).
+    - `config` npm package for configuration management.
+    - `nedb` for simple database (URL persistence).
+    - `request` for proxying HTTP requests.
+    - `dockerode` for Docker interaction (automatic URL discovery).
+- **Build/Development:**
+    - npm (based on `package-lock.json` and scripts in `package.json`).
+    - Create React App scripts (`react-scripts: "4.0.3"`) for frontend build (`build-front`) and dev server (`start-front`).
+    - Docker (`Dockerfile`, `docker-compose.yml`) for containerization of the application and a test Traefik v2 instance.
+- **Testing:**
+    - Mocha (`mocha: "^3.4.1"`) with Chai (`chai: "^3.5.0"`, `chai-http: "^3.0.0"`) for backend API tests (`test/test.js`).
+    - Jest (via `react-scripts test --env=jsdom`) for frontend component tests (e.g., `App.test.js`).
+
+## 2. Development Setup (Confirmed & Assumptions)
+
+- **Prerequisites:** Node.js (v18 recommended), npm, Docker.
+- **Git Repository:** `ssh://git@e4e-vcs.deltaww.com:8080/andrew-test/infra/react-traefik.git` (Project is intended to be pushed here).
+- **Installation:** Run `npm install` in the root directory. The `api/` directory does not have its own `package.json`, so root-level install covers backend dependencies too.
+- **Running Application (Docker Compose - Recommended for Integrated Testing):**
+    - `docker-compose up --build` will build and run both the `app` (React frontend + Node.js backend proxy) and a `traefik` v2 service.
+    - The application will be accessible at `http://localhost:3001`.
+    - Traefik API (for the test instance) is at `http://traefik:8080` (internally within Docker network) or potentially `http://localhost:8080` if port is exposed from `docker-compose.yml`.
+- **Running Frontend (Standalone):** `npm run start-front` (runs `react-scripts start` on port 3000, proxies to backend on 3001).
+- **Running Backend (Standalone):** `npm run start-api` (runs `node ./api/bin/www` on port 3001).
+- **Running Tests:**
+    - Backend API tests: `npm test` (runs Mocha tests).
+    - Frontend tests: `npm run test-front` (runs Jest tests).
+- **Traefik Instance:**
+    - For development and testing, `docker-compose.yml` provides a Traefik v2.10 instance.
+    - The application's backend can auto-detect Traefik URL if running in Docker with socket mounted, or URL can be manually set via UI.
+
+## 3. Technical Constraints & Considerations
+
+- **Browser Compatibility:** Target modern web browsers. (Specifics still TBD, but React 16 has good compatibility).
+- **API Rate Limiting:** Be mindful of potential rate limits on the Traefik API, especially if using polling.
+- **Data Volume:** Traefik API responses can be large. Efficient data handling and rendering are important.
+- **Authentication/Authorization:** How does the dashboard authenticate with the Traefik API? (v1 might be unauthenticated by default, v2 might have options). Needs investigation.
+- **CORS:** Cross-Origin Resource Sharing might be a factor if the dashboard is served from a different domain/port than the Traefik API. The backend (`api/`) might be acting as a CORS proxy.
+
+## 4. Dependencies (High-Level - Check `package.json` for specifics)
+
+- **Frontend:** `react`, `react-dom`, `redux`, `react-redux`, `redux-thunk` (likely), `three`, potentially `axios`, `react-router-dom`.
+- **Backend (`api/`):** `express`, `config`, `morgan`, `debug`, potentially `cors`, `node-fetch` or `axios`.
+
+## 5. Tool Usage Patterns (To Be Discovered)
+
+- Linting/Formatting tools (e.g., ESLint, Prettier).
+- Specific debugging techniques used.
+- Deployment scripts or CI/CD setup (if any).
+</file>
+
+<file path="src/containers/Root.js">
+import React, { Component } from 'react'
+import { Provider } from 'react-redux'
+import configureStore from '../store/configureStore'
+import AsyncApp from './AsyncApp'
+
+const store = configureStore()
+
+export default class Root extends Component {
+  render() {
+    return (
+      <Provider store={store}>
+        <AsyncApp traefik_url="http://192.168.0.32:8080"/>
+      </Provider>
+    )
+  }
+}
+</file>
+
+<file path="src/store/configureStore.js">
+import { createStore, applyMiddleware } from 'redux'
+import thunkMiddleware from 'redux-thunk'
+import { createLogger } from 'redux-logger'
+import rootReducer from '../reducers'
+
+const loggerMiddleware = createLogger()
+
+export default function configureStore(preloadedState) {
+  return createStore(
+    rootReducer,
+    preloadedState,
+    applyMiddleware(
+      thunkMiddleware,
+      loggerMiddleware
+    )
+  )
+}
+</file>
+
 <file path="src/App.css">
 .App {
   text-align: center;
@@ -833,25 +966,6 @@ it('renders without crashing', () => {
 });
 </file>
 
-<file path="src/containers/Root.js">
-import React, { Component } from 'react'
-import { Provider } from 'react-redux'
-import configureStore from '../store/configureStore'
-import AsyncApp from './AsyncApp'
-
-const store = configureStore()
-
-export default class Root extends Component {
-  render() {
-    return (
-      <Provider store={store}>
-        <AsyncApp traefik_url="http://192.168.0.32:8080"/>
-      </Provider>
-    )
-  }
-}
-</file>
-
 <file path="src/index.js">
 import React from 'react'
 import { render } from 'react-dom'
@@ -862,26 +976,6 @@ render(
   <Root />,
   document.getElementById('root')
 )
-</file>
-
-<file path="src/store/configureStore.js">
-import { createStore, applyMiddleware } from 'redux'
-import thunkMiddleware from 'redux-thunk'
-import { createLogger } from 'redux-logger'
-import rootReducer from '../reducers'
-
-const loggerMiddleware = createLogger()
-
-export default function configureStore(preloadedState) {
-  return createStore(
-    rootReducer,
-    preloadedState,
-    applyMiddleware(
-      thunkMiddleware,
-      loggerMiddleware
-    )
-  )
-}
 </file>
 
 <file path="test/test.js">
@@ -977,6 +1071,77 @@ describe('API', () => {
 
 });
 return;
+</file>
+
+<file path="memory-bank/progress.md">
+# Progress: React Traefik Dashboard v2 API Migration
+
+## 1. Current Status
+
+- **Phase:** Memory Bank Synchronization, Backend Migration (Completion), Frontend Integration (Expansion).
+- **Overall Progress:** ~90% (Core development for Traefik v2 API migration, including backend proxies, frontend Redux store, and component data handling, is complete based on code analysis. Project is ready for build/packaging tests by the user, followed by visual testing and potential UI refinements).
+- **Memory Bank:** Updated to reflect current project state, including the new testing strategy.
+
+## 2. What Works (Current State - Mid-Migration)
+
+- **Backend Proxy (`api/routes/api.js` - Complete for planned V2 endpoints):**
+    - Node.js/Express backend successfully proxies:
+        - `GET /api/v2/http/routers` to Traefik v2 `/api/http/routers`.
+        - `GET /api/v2/http/services` to Traefik v2 `/api/http/services`.
+        - `GET /api/v2/overview` to Traefik v2 `/api/overview`.
+        - `GET /api/v2/entrypoints` to Traefik v2 `/api/entrypoints`.
+        - `GET /api/v2/http/middlewares` to Traefik v2 `/api/http/middlewares`.
+        - `GET /api/v2/tls/certificates` to Traefik v2 `/api/tls/certificates`.
+    - URL management (`GET/PUT /api/url`) remains functional.
+- **Frontend Integration (Partial):**
+    - Redux actions (`src/actions/index.js`) can fetch all planned Traefik v2 data types.
+    - Redux reducers (`src/reducers/index.js`) can store all planned Traefik v2 data types in the state.
+    - `AsyncApp.js` container handles fetching and polling of v2 data.
+    - `ThreeJSFlow.js` component can visualize all planned v2 data types (routers, services, overview, entrypoints, middlewares, TLS certificates), including search/filter functionality. (Substantial integration exists, may need refinement).
+- The basic React/Redux structure is in place and adapted for initial v2 data.
+
+## 3. What's Left to Build/Migrate
+
+- **Memory Bank Update (Completed for this cycle):**
+    - `activeContext.md` updated.
+    - `progress.md` updated (This update).
+    - `systemPatterns.md` confirmed accurate.
+    - `techContext.md` confirmed accurate.
+- **Implementation (Backend - Completed):**
+    - All planned Traefik v2 API proxy routes in `api/routes/api.js` are implemented.
+- **Implementation (Frontend - Expansion & Refinement - Next Steps):**
+    - **Redux State:**
+        - Expand Redux state in `src/reducers/index.js` to hold overview, entrypoints, middlewares, and TLS certificates data.
+    - **Redux Actions (Completed):**
+        - `src/actions/index.js` includes action types and creators for fetching all v2 data.
+        - `fetchTraefikV2Data` function fetches all these data types concurrently.
+    - **Redux Reducers (Completed):**
+        - `src/reducers/index.js` handles actions for all v2 data types and stores them in the Redux state.
+    - **Component Integration (Substantially Completed, UI Refinement Post-User-Testing):**
+        - `src/components/ThreeJSFlow.js` includes logic to access, filter, and visualize all planned v2 data types.
+        - UI refinements will be based on user feedback after visual testing.
+- **Testing (Next Major Steps):**
+    - **Build/Packaging Test (Cline-Executed, User-Verified):**
+        - Cline will execute build/packaging commands (e.g., `npm run build-front`, `docker-compose build`) using `execute_command`.
+        - Success requires an explicit success message from the build process, as per `.clinerules/build-testing-rules.md`. Mere completion without errors is insufficient.
+        - User to verify the outcome based on Cline's report of the build/packaging process.
+    - **Visual Testing (User-Led):** Following a successful build/packaging confirmed by Cline, the user will perform visual testing of the UI.
+- **Documentation:**
+    - Memory Bank updates completed for this development cycle.
+    - `.clinerules/project-workflow-and-testing.md` created.
+    - `README.md` update for v2 can be a future task.
+
+## 4. Known Issues / Blockers
+
+- **Lack of v1/v2 Instance for Direct Comparison/Testing:** Still need access to running Traefik v1 (for baseline comparison if any v1 behavior needs to be perfectly replicated) and a fully configured v2 (for development/testing against all API endpoints) instances. The `docker-compose.yml` provides a v2 instance, which is good for basic testing.
+- **API Granularity:** v2 API requires fetching and combining data from multiple endpoints. This is partially handled for routers/services, needs to be extended for other data types.
+- **React Version (v16, not v15 as previously thought based on package.json):** While `package.json` shows React 16.14.0, which is more modern than v15, it's still not the latest. Care should be taken with new patterns or libraries. (Correction: `package.json` shows `react: "^16.14.0"`, `src/actions/index.js` and `src/reducers/index.js` were updated based on `repomix-output.xml` which confirmed this version).
+
+## 5. Evolution of Project Decisions
+
+- **[Date]:** Initialized Memory Bank structure.
+- **[Date]:** Initial code analysis completed.
+- **[Current Date]:** Analyzed `repomix-output.xml`. Confirmed backend proxies, frontend actions, and reducers are complete. Reviewed `src/components/ThreeJSFlow.js` and found substantial existing integration for all v2 data types. Documented new testing strategy. Project ready for user-led build and visual tests.
 </file>
 
 <file path="src/components/UrlInput.js">
@@ -1455,33 +1620,6 @@ export default class Tree {
 export const API_URL = ""
 </file>
 
-<file path="Dockerfile">
-FROM node:18-alpine
-
-# Create app directory
-RUN mkdir -p /usr/src/app
-WORKDIR /usr/src/app
-
-# Bundle app source
-COPY . /usr/src/app
-
-# Set NODE_OPTIONS for OpenSSL legacy provider for subsequent RUN commands
-ENV NODE_OPTIONS=--openssl-legacy-provider
-
-# Install all dependencies, generate package-lock.json if not present or update if needed,
-# executes post-install script and remove deps
-RUN npm install && \
-    npm run build-front && \
-    rm -rf node_modules
-
-# Install app production only dependencies
-RUN npm install --production --ignore-scripts && npm cache clean --force && cp -rp ./node_modules /tmp/node_modules
-
-EXPOSE 3001
-
-CMD [ "npm", "start" ]
-</file>
-
 <file path="src/index.css">
 html{
   width: 100%;
@@ -1630,6 +1768,33 @@ body {
   stroke-width: 4px;
   transition: stroke 0.2s, stroke-width 0.2s;
 }
+</file>
+
+<file path="Dockerfile">
+FROM node:18-alpine
+
+# Create app directory
+RUN mkdir -p /usr/src/app
+WORKDIR /usr/src/app
+
+# Bundle app source
+COPY . /usr/src/app
+
+# Set NODE_OPTIONS for OpenSSL legacy provider for subsequent RUN commands
+ENV NODE_OPTIONS=--openssl-legacy-provider
+
+# Install all dependencies, generate package-lock.json if not present or update if needed,
+# executes post-install script and remove deps
+RUN npm install && \
+    npm run build-front && \
+    rm -rf node_modules
+
+# Install app production only dependencies
+RUN npm install --production --ignore-scripts && npm cache clean --force && cp -rp ./node_modules /tmp/node_modules
+
+EXPOSE 3001
+
+CMD [ "npm", "start" ]
 </file>
 
 <file path=".gitignore">
@@ -1901,8 +2066,14 @@ function fetchTraefikV2Data(dispatch) {
 
   const fetchPromises = Object.entries(endpoints).map(([key, url]) => {
     return fetch(url).then(response => {
-      if (!response.ok) { throw new Error(`HTTP error ${response.status} fetching ${key} from ${url}`); }
-      return response.json().then(data => ({ key, data })); // Tag data with its key
+      if (key === 'tlsCertificates' && response.status === 404) {
+        console.warn(`Traefik API endpoint for ${key} returned 404. Proceeding without TLS certificate data.`);
+        return { key, data: [] }; // Resolve with empty array for tlsCertificates on 404
+      }
+      if (!response.ok) { // For all other errors, or errors on other endpoints
+        throw new Error(`HTTP error ${response.status} fetching ${key} from ${url}`);
+      }
+      return response.json().then(data => ({ key, data }));
     });
   });
 
@@ -2616,6 +2787,213 @@ const rootReducer = combineReducers({
 export default rootReducer;
 </file>
 
+<file path="src/containers/AsyncApp.js">
+import React, { Component } from 'react';
+import PropTypes from 'prop-types';
+import { connect } from 'react-redux';
+// Updated action import
+import { fetchTraefikData, fetchConfigReady, setUrl, search, invalidateData } from '../actions';
+import UrlInput from '../components/UrlInput';
+import Search from '../components/Search';
+import ThreeJSFlow from '../components/ThreeJSFlow'
+
+class AsyncApp extends Component {
+  timer = null
+
+  constructor(props) {
+    super(props)
+    this.handleChange = this.handleChange.bind(this)
+    this.handleSearchChange = this.handleSearchChange.bind(this)
+  }
+
+  // Updated function name to reflect v2
+  loadData(dispatch, traefik_url) {
+    // Call the updated action
+    dispatch(fetchTraefikData(traefik_url));
+  }
+
+  componentDidMount() {
+    const { dispatch } = this.props
+    dispatch(fetchConfigReady())
+  }
+
+  componentDidUpdate(prevProps) {
+    const { dispatch, traefikData } = this.props;
+
+    // Guard against initial render when traefikData might be undefined
+    if (!traefikData) {
+      return;
+    }
+
+    // Use traditional checks instead of optional chaining for Node v7 compatibility
+    const prevTraefikData = prevProps.traefikData; // Get previous data object
+    const prevTraefikUrl = prevTraefikData && prevTraefikData.traefik_url; // Check if prevTraefikData exists
+    const prevConfigReady = prevTraefikData && prevTraefikData.configReady; // Check if prevTraefikData exists
+
+    const urlChanged = traefikData.traefik_url !== prevTraefikUrl;
+    const configJustBecameReady = traefikData.configReady && !prevConfigReady;
+    const shouldLoadInitialData = traefikData.configReady && (!traefikData.routers || traefikData.didInvalidate); // Load if ready and no routers yet or invalidated
+
+    // If URL changed or config just became ready, and we should load initial data
+    if ((urlChanged || configJustBecameReady) && shouldLoadInitialData) {
+        console.log("URL changed or config ready, loading initial data...");
+        this.loadData(dispatch, traefikData.traefik_url);
+        // Clear existing timer if URL changed
+        if (this.timer) {
+            window.clearInterval(this.timer);
+            delete this.timer;
+        }
+        // Set up polling timer only if config is ready
+        if (traefikData.configReady) {
+             this.timer = window.setInterval(() => {
+                 console.log("Polling for data...");
+                 this.loadData(dispatch, traefikData.traefik_url);
+             }, 15000); // Poll every 15 seconds
+        }
+    }
+
+    // Clear timer if config becomes not ready (e.g., due to error)
+    if (!traefikData.configReady && this.timer) {
+        console.log("Config not ready, clearing timer.");
+        window.clearInterval(this.timer);
+        delete this.timer;
+    }
+  }
+
+  handleChange(next_traefik_url) {
+    const { dispatch } = this.props
+    dispatch(setUrl(next_traefik_url))
+  }
+
+  handleSearchChange(query) {
+    const { dispatch } = this.props
+    dispatch(search(query))
+  }
+
+  // Clear timer on unmount
+  componentWillUnmount() {
+      if (this.timer) {
+          window.clearInterval(this.timer);
+      }
+  }
+
+
+  handleChange(next_traefik_url) {
+    const { dispatch } = this.props;
+    // Setting URL now also invalidates data in the reducer
+    dispatch(setUrl(next_traefik_url));
+  }
+
+  handleSearchChange(query) {
+    const { dispatch } = this.props;
+    dispatch(search(query));
+    // Note: Actual filtering logic is commented out in reducer for now
+  }
+
+  render() {
+    // Get data from the mapped traefikData prop
+    const { traefikData } = this.props;
+    // Destructure needed properties from traefikData, providing defaults
+    const {
+        traefik_url = null,
+        isFetching = false,
+        lastUpdated = null, // Use new property name
+        routers = null,
+        services = null, // Use new property name
+        error = null,
+        configReady = false,
+        search_query = '' // Needed for Search component value
+    } = traefikData || {}; // Handle case where traefikData might be null initially
+
+    const hasData = routers && services; // Condition based on v2 data
+
+    return (
+    <div>
+      <nav className="navbar navbar-toggleable-md navbar-inverse bg-inverse">
+        <button className="navbar-toggler navbar-toggler-right" type="button" data-toggle="collapse" data-target="#navbarsExampleDefault" aria-controls="navbarsExampleDefault" aria-expanded="false" aria-label="Toggle navigation">
+          <span className="navbar-toggler-icon"></span>
+        </button>
+        <a className="navbar-brand" href="/">Traefik - diagram</a>
+
+        <div className="collapse navbar-collapse" id="navbarSupportedContent">
+          <ul className="navbar-nav mr-auto">
+            <li className="nav-item active">
+              <a className="nav-link" href="https://github.com/guillaumejacquart/react-traefik">Doc</a>
+            </li>
+          </ul>
+          
+          {/* Pass traefik_url directly */}
+          <UrlInput value={traefik_url} onClick={this.handleChange} />
+        </div>
+      </nav>
+      <div className="container">
+        {/* Render Search if data is available */}
+        {hasData &&
+        <Search value={search_query} onChange={this.handleSearchChange} />
+        }
+        <p>
+          {/* Use lastUpdated */}
+          {lastUpdated &&
+            <span>
+              Last updated at {new Date(lastUpdated).toLocaleTimeString()}.
+              {' '}
+            </span>
+          }
+        </p>
+        {/* Show loading only if fetching and no data yet */}
+        {isFetching && !hasData &&
+          <h2>Loading...</h2>
+        }
+        {/* Show prompt if config not ready and not fetching */}
+        {!configReady && !isFetching && !traefik_url &&
+          <h3 className="text-center">Fill out your Traefik API URL in the navigation header</h3>
+        }
+         {/* Show error message if an error exists */}
+        {error &&
+          <h3 className="text-center text-danger">Error: {typeof error === 'string' ? error : JSON.stringify(error)}</h3>
+        }
+      </div>
+      <div>
+         {/* Render visualization if data is available */}
+        {hasData &&
+          // Pass the whole traefikData object, ThreeJSFlow needs updating too
+          <ThreeJSFlow data={traefikData} />
+        }
+      </div>
+    </div>
+    )
+  }
+}
+
+AsyncApp.propTypes = {
+  // traefikData contains all the state now
+  traefikData: PropTypes.shape({
+      isFetching: PropTypes.bool.isRequired,
+      lastUpdated: PropTypes.number, // Use new name
+      configReady: PropTypes.bool,
+      traefik_url: PropTypes.string,
+      routers: PropTypes.any, // Adjust type as needed
+      services: PropTypes.any, // Adjust type as needed
+      error: PropTypes.any,
+      didInvalidate: PropTypes.bool,
+      search_query: PropTypes.string
+  }),
+  dispatch: PropTypes.func.isRequired
+};
+
+function mapStateToProps(state) {
+  // Map the entire traefikData slice to the traefikData prop
+  const { traefikData } = state;
+
+  // No need to map individual properties if passing the whole slice
+  return {
+    traefikData
+  };
+}
+
+export default connect(mapStateToProps)(AsyncApp);
+</file>
+
 <file path="api/routes/api.js">
 var express = require('express');
 var router = express.Router();
@@ -2940,213 +3318,6 @@ router.get('/v2/tls/certificates', function (req, res, next) {
 module.exports = router;
 </file>
 
-<file path="src/containers/AsyncApp.js">
-import React, { Component } from 'react';
-import PropTypes from 'prop-types';
-import { connect } from 'react-redux';
-// Updated action import
-import { fetchTraefikData, fetchConfigReady, setUrl, search, invalidateData } from '../actions';
-import UrlInput from '../components/UrlInput';
-import Search from '../components/Search';
-import ThreeJSFlow from '../components/ThreeJSFlow'
-
-class AsyncApp extends Component {
-  timer = null
-
-  constructor(props) {
-    super(props)
-    this.handleChange = this.handleChange.bind(this)
-    this.handleSearchChange = this.handleSearchChange.bind(this)
-  }
-
-  // Updated function name to reflect v2
-  loadData(dispatch, traefik_url) {
-    // Call the updated action
-    dispatch(fetchTraefikData(traefik_url));
-  }
-
-  componentDidMount() {
-    const { dispatch } = this.props
-    dispatch(fetchConfigReady())
-  }
-
-  componentDidUpdate(prevProps) {
-    const { dispatch, traefikData } = this.props;
-
-    // Guard against initial render when traefikData might be undefined
-    if (!traefikData) {
-      return;
-    }
-
-    // Use traditional checks instead of optional chaining for Node v7 compatibility
-    const prevTraefikData = prevProps.traefikData; // Get previous data object
-    const prevTraefikUrl = prevTraefikData && prevTraefikData.traefik_url; // Check if prevTraefikData exists
-    const prevConfigReady = prevTraefikData && prevTraefikData.configReady; // Check if prevTraefikData exists
-
-    const urlChanged = traefikData.traefik_url !== prevTraefikUrl;
-    const configJustBecameReady = traefikData.configReady && !prevConfigReady;
-    const shouldLoadInitialData = traefikData.configReady && (!traefikData.routers || traefikData.didInvalidate); // Load if ready and no routers yet or invalidated
-
-    // If URL changed or config just became ready, and we should load initial data
-    if ((urlChanged || configJustBecameReady) && shouldLoadInitialData) {
-        console.log("URL changed or config ready, loading initial data...");
-        this.loadData(dispatch, traefikData.traefik_url);
-        // Clear existing timer if URL changed
-        if (this.timer) {
-            window.clearInterval(this.timer);
-            delete this.timer;
-        }
-        // Set up polling timer only if config is ready
-        if (traefikData.configReady) {
-             this.timer = window.setInterval(() => {
-                 console.log("Polling for data...");
-                 this.loadData(dispatch, traefikData.traefik_url);
-             }, 15000); // Poll every 15 seconds
-        }
-    }
-
-    // Clear timer if config becomes not ready (e.g., due to error)
-    if (!traefikData.configReady && this.timer) {
-        console.log("Config not ready, clearing timer.");
-        window.clearInterval(this.timer);
-        delete this.timer;
-    }
-  }
-
-  handleChange(next_traefik_url) {
-    const { dispatch } = this.props
-    dispatch(setUrl(next_traefik_url))
-  }
-
-  handleSearchChange(query) {
-    const { dispatch } = this.props
-    dispatch(search(query))
-  }
-
-  // Clear timer on unmount
-  componentWillUnmount() {
-      if (this.timer) {
-          window.clearInterval(this.timer);
-      }
-  }
-
-
-  handleChange(next_traefik_url) {
-    const { dispatch } = this.props;
-    // Setting URL now also invalidates data in the reducer
-    dispatch(setUrl(next_traefik_url));
-  }
-
-  handleSearchChange(query) {
-    const { dispatch } = this.props;
-    dispatch(search(query));
-    // Note: Actual filtering logic is commented out in reducer for now
-  }
-
-  render() {
-    // Get data from the mapped traefikData prop
-    const { traefikData } = this.props;
-    // Destructure needed properties from traefikData, providing defaults
-    const {
-        traefik_url = null,
-        isFetching = false,
-        lastUpdated = null, // Use new property name
-        routers = null,
-        services = null, // Use new property name
-        error = null,
-        configReady = false,
-        search_query = '' // Needed for Search component value
-    } = traefikData || {}; // Handle case where traefikData might be null initially
-
-    const hasData = routers && services; // Condition based on v2 data
-
-    return (
-    <div>
-      <nav className="navbar navbar-toggleable-md navbar-inverse bg-inverse">
-        <button className="navbar-toggler navbar-toggler-right" type="button" data-toggle="collapse" data-target="#navbarsExampleDefault" aria-controls="navbarsExampleDefault" aria-expanded="false" aria-label="Toggle navigation">
-          <span className="navbar-toggler-icon"></span>
-        </button>
-        <a className="navbar-brand" href="/">Traefik - diagram</a>
-
-        <div className="collapse navbar-collapse" id="navbarSupportedContent">
-          <ul className="navbar-nav mr-auto">
-            <li className="nav-item active">
-              <a className="nav-link" href="https://github.com/guillaumejacquart/react-traefik">Doc</a>
-            </li>
-          </ul>
-          
-          {/* Pass traefik_url directly */}
-          <UrlInput value={traefik_url} onClick={this.handleChange} />
-        </div>
-      </nav>
-      <div className="container">
-        {/* Render Search if data is available */}
-        {hasData &&
-        <Search value={search_query} onChange={this.handleSearchChange} />
-        }
-        <p>
-          {/* Use lastUpdated */}
-          {lastUpdated &&
-            <span>
-              Last updated at {new Date(lastUpdated).toLocaleTimeString()}.
-              {' '}
-            </span>
-          }
-        </p>
-        {/* Show loading only if fetching and no data yet */}
-        {isFetching && !hasData &&
-          <h2>Loading...</h2>
-        }
-        {/* Show prompt if config not ready and not fetching */}
-        {!configReady && !isFetching && !traefik_url &&
-          <h3 className="text-center">Fill out your Traefik API URL in the navigation header</h3>
-        }
-         {/* Show error message if an error exists */}
-        {error &&
-          <h3 className="text-center text-danger">Error: {typeof error === 'string' ? error : JSON.stringify(error)}</h3>
-        }
-      </div>
-      <div>
-         {/* Render visualization if data is available */}
-        {hasData &&
-          // Pass the whole traefikData object, ThreeJSFlow needs updating too
-          <ThreeJSFlow data={traefikData} />
-        }
-      </div>
-    </div>
-    )
-  }
-}
-
-AsyncApp.propTypes = {
-  // traefikData contains all the state now
-  traefikData: PropTypes.shape({
-      isFetching: PropTypes.bool.isRequired,
-      lastUpdated: PropTypes.number, // Use new name
-      configReady: PropTypes.bool,
-      traefik_url: PropTypes.string,
-      routers: PropTypes.any, // Adjust type as needed
-      services: PropTypes.any, // Adjust type as needed
-      error: PropTypes.any,
-      didInvalidate: PropTypes.bool,
-      search_query: PropTypes.string
-  }),
-  dispatch: PropTypes.func.isRequired
-};
-
-function mapStateToProps(state) {
-  // Map the entire traefikData slice to the traefikData prop
-  const { traefikData } = state;
-
-  // No need to map individual properties if passing the whole slice
-  return {
-    traefikData
-  };
-}
-
-export default connect(mapStateToProps)(AsyncApp);
-</file>
-
 <file path="package.json">
 {
   "name": "react-traefik",
@@ -3197,6 +3368,18 @@ export default connect(mapStateToProps)(AsyncApp);
   "proxy": "http://localhost:3001",
   "browser": {
     "child_process": false
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
   }
 }
 </file>

@@ -10,7 +10,7 @@ export const RECEIVE_TRAEFIK_SERVICES = 'RECEIVE_TRAEFIK_SERVICES' // New for v2
 export const RECEIVE_TRAEFIK_OVERVIEW = 'RECEIVE_TRAEFIK_OVERVIEW' // New for v2
 export const RECEIVE_TRAEFIK_ENTRYPOINTS = 'RECEIVE_TRAEFIK_ENTRYPOINTS' // New for v2
 export const RECEIVE_TRAEFIK_MIDDLEWARES = 'RECEIVE_TRAEFIK_MIDDLEWARES' // New for v2
-export const RECEIVE_TRAEFIK_TLS_CERTIFICATES = 'RECEIVE_TRAEFIK_TLS_CERTIFICATES' // New for v2
+// export const RECEIVE_TRAEFIK_TLS_CERTIFICATES = 'RECEIVE_TRAEFIK_TLS_CERTIFICATES' // Removed
 export const RECEIVE_TRAEFIK_DATA_ERROR = 'RECEIVE_TRAEFIK_DATA_ERROR' // New for v2 errors
 // export const RECEIVE_TRAEFIK_PROVIDERS = 'RECEIVE_TRAEFIK_PROVIDERS' // Deprecated v1
 export const INVALIDATE_DATA = 'INVALIDATE_DATA'
@@ -93,13 +93,13 @@ function receiveTraefikMiddlewares(json) {
   }
 }
 
-// New for v2 TLS certificates
-function receiveTraefikTlsCertificates(json) {
-  return {
-    type: RECEIVE_TRAEFIK_TLS_CERTIFICATES,
-    tlsCertificates: json,
-  }
-}
+// New for v2 TLS certificates - Removed
+// function receiveTraefikTlsCertificates(json) {
+//   return {
+//     type: RECEIVE_TRAEFIK_TLS_CERTIFICATES,
+//     tlsCertificates: json,
+//   }
+// }
 
 // New for v2 errors during data fetch
 function receiveTraefikDataError(error) {
@@ -207,14 +207,17 @@ function fetchTraefikV2Data(dispatch) {
     services: `${API_URL}/api/v2/http/services`,
     overview: `${API_URL}/api/v2/overview`,
     entrypoints: `${API_URL}/api/v2/entrypoints`,
-    middlewares: `${API_URL}/api/v2/http/middlewares`,
-    tlsCertificates: `${API_URL}/api/v2/tls/certificates`
+    middlewares: `${API_URL}/api/v2/http/middlewares`
+    // tlsCertificates: `${API_URL}/api/v2/tls/certificates` // Removed as per user feedback
   };
 
   const fetchPromises = Object.entries(endpoints).map(([key, url]) => {
     return fetch(url).then(response => {
-      if (!response.ok) { throw new Error(`HTTP error ${response.status} fetching ${key} from ${url}`); }
-      return response.json().then(data => ({ key, data })); // Tag data with its key
+      // Removed specific handling for tlsCertificates as the endpoint call is removed
+      if (!response.ok) { // For all other errors, or errors on other endpoints
+        throw new Error(`HTTP error ${response.status} fetching ${key} from ${url}`);
+      }
+      return response.json().then(data => ({ key, data }));
     });
   });
 
@@ -242,9 +245,9 @@ function fetchTraefikV2Data(dispatch) {
           case 'middlewares':
             dispatch(receiveTraefikMiddlewares(result.data));
             break;
-          case 'tlsCertificates':
-            dispatch(receiveTraefikTlsCertificates(result.data));
-            break;
+          // case 'tlsCertificates': // Removed
+          //   dispatch(receiveTraefikTlsCertificates(result.data)); // Removed
+          //   break;
           default:
             console.warn("Unknown data key received:", result.key);
         }

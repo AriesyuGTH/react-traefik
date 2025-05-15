@@ -22,7 +22,7 @@ services:
       - traefik-net
 
   traefik:
-    image: traefik:v2.10 # Use a specific Traefik v2 version
+    image: traefik:v2.11.24 # Use a specific Traefik v2 version
     container_name: traefik-for-dashboard-test
     command:
       # Enable API and dashboard (insecure for testing only!)
@@ -39,10 +39,13 @@ services:
     ports:
       # Expose web entrypoint if needed for testing services through Traefik
       - "80:80"
+      - "443:443"
       # Expose dashboard/API port ONLY if you need to access it directly from host
-      # - "8080:8080" # Usually not needed, app service accesses it internally
+      - "8080:8080" # Usually not needed, app service accesses it internally
     volumes:
       # Mount Docker socket to allow Traefik to discover services
+      - "./traefik/conf/traefik.yml:/etc/traefik/traefik.yml"
+      - "./traefik/conf/dynaConfs:/etc/traefik/dynaConfs"
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
     networks:
       - traefik-net

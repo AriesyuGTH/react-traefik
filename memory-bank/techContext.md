@@ -27,7 +27,7 @@
 ## 2. Development Setup (Confirmed & Assumptions)
 
 - **Prerequisites:** Node.js (v18 recommended), npm, Docker.
-- **Git Repository:** `https://github.com/AriesyuGTH/react-traefik.git` (Actual remote URL used for push).
+- **Git Repository:** `ssh://git@e4e-vcs.deltaww.com:8080/andrew-test/infra/react-traefik.git` (Project is intended to be pushed here).
 - **Installation:** Run `npm install` in the root directory. The `api/` directory does not have its own `package.json`, so root-level install covers backend dependencies too.
 - **Running Application (Docker Compose - Recommended for Integrated Testing):**
     - `docker-compose up --build` will build and run both the `app` (React frontend + Node.js backend proxy) and a `traefik` v2 service.

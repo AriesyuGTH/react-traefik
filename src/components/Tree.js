@@ -257,9 +257,21 @@ export default class Tree {
                 })
                 .on('end', (e) => {
                     if(e.data.className === 'internet-root'){
-                        var top1 = $('.traefik-root').position().top;
-                        var top2 = $('.internet-root').position().top;
-                        svg.attr("transform", "translate(" + margin.left + "," + (margin.top + (top1-top2)/2) + ")");
+                        var posTraefikRoot = $('.traefik-root').position();
+                        var posInternetRoot = $('.internet-root').position();
+
+                        if (posTraefikRoot && posInternetRoot) {
+                            var top1 = posTraefikRoot.top;
+                            var top2 = posInternetRoot.top;
+                            svg.attr("transform", "translate(" + margin.left + "," + (margin.top + (top1 - top2) / 2) + ")");
+                        } else {
+                            if (!posTraefikRoot) {
+                                console.warn(".traefik-root element not found for position adjustment.");
+                            }
+                            if (!posInternetRoot) {
+                                console.warn(".internet-root element not found for position adjustment.");
+                            }
+                        }
                     }
                 });;
 
