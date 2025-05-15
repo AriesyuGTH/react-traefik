@@ -1,0 +1,63 @@
+{
+  "name": "react-traefik",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "body-parser": "~1.17.1",
+    "config": "^1.26.1",
+    "cors": "^2.8.3",
+    "d3": "^4.8.0",
+    "debug": "~2.6.3",
+    "dockerode": "^2.4.3",
+    "express": "~4.15.2",
+    "isomorphic-fetch": "^2.2.1",
+    "jquery": "^3.2.1",
+    "lodash": "^4.17.4",
+    "morgan": "~1.8.1",
+    "nedb": "^1.8.0",
+    "prop-types": "^15.5.8",
+    "react": "^16.14.0",
+    "react-dom": "^16.14.0",
+    "react-redux": "^5.0.4",
+    "react-traefik": "file:",
+    "redux": "^4.2.0",
+    "redux-logger": "^3.0.1",
+    "redux-thunk": "^2.2.0",
+    "request": "^2.81.0",
+    "serve-favicon": "~2.4.2"
+  },
+  "devDependencies": {
+    "chai": "^3.5.0",
+    "chai-http": "^3.0.0",
+    "mocha": "^3.4.1",
+    "react-scripts": "4.0.3",
+    "should": "^11.2.1",
+    "supertest": "^3.0.0"
+  },
+  "scripts": {
+    "start": "npm run start-api",
+    "test": "mocha --timeout 10000",
+    "start-api": "node ./api/bin/www",
+    "start-front": "react-scripts start",
+    "build-front": "react-scripts build",
+    "test-front": "react-scripts test --env=jsdom",
+    "eject-front": "react-scripts eject",
+    "install": "npm run build-front"
+  },
+  "proxy": "http://localhost:3001",
+  "browser": {
+    "child_process": false
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}

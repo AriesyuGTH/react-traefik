@@ -1,0 +1,3387 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+4. Repository files, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+<additional_info>
+
+</additional_info>
+
+</file_summary>
+
+<directory_structure>
+.clinerules/
+  build-testing-rules.md
+  project-workflow-and-testing.md
+api/
+  bin/
+    www
+  public/
+    stylesheets/
+      style.css
+  routes/
+    api.js
+  .gitignore
+  app.js
+config/
+  default.json
+  test.json
+memory-bank/
+  activeContext.md
+  productContext.md
+  progress.md
+  projectbrief.md
+  systemPatterns.md
+  techContext.md
+public/
+  index.html
+src/
+  actions/
+    index.js
+  components/
+    Search.js
+    ThreeJSFlow.js
+    Tree.js
+    UrlInput.js
+  containers/
+    AsyncApp.js
+    Root.js
+  reducers/
+    index.js
+  store/
+    configureStore.js
+  App.css
+  App.js
+  App.test.js
+  Conf.js
+  index.css
+  index.js
+test/
+  data/
+    cache.db
+  test.js
+traefik/
+  conf/
+    traefik.yml
+.gitignore
+.gitlab-ci.yml
+.gitpod.yml
+docker-compose.yml
+Dockerfile
+package.json
+README.md
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="traefik/conf/traefik.yml">
+logLevel: DEBUG
+
+api:
+  insecure: true
+  dashboard: true
+
+entryPoints:
+  http:
+    address: ":80"
+  https:
+    address: ":443"
+
+providers:
+# sub key will be file OR directory, not both.  
+  file:
+    # filename: /etc/traefik/tls.yml
+    directory: /etc/traefik/dynaConfs
+  docker:
+    endpoint: unix:///var/run/docker.sock
+    watch: true
+    exposedByDefault: false
+    defaultRule: "HostRegexp({{ index .Labels \"com.docker.compose.service\"}}.traefik.me,{{ index .Labels \"com.docker.compose.service\"}}-{dashed-ip:.*}.traefik.me)"
+
+# 啟用實驗性插件
+experimental:
+  plugins:
+    traefik-jwt-plugin:
+      moduleName: "github.com/traefik-plugins/traefik-jwt-plugin"
+      version: "v0.9.0"
+
+http:
+  middlewares:
+    my-traefik-jwt-plugin:
+      plugin:
+        traefik-jwt-plugin:
+          JwtHeaders:
+            X-Subject: sub
+          Keys:
+            - http://authentication-backend:3001/authentication-backend/jwt/jwks.json
+            - |
+              -----BEGIN PUBLIC KEY-----
+              MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnzyis1ZjfNB0bBgKFMSv
+              vkTtwlvBsaJq7S5wA+kzeVOVpVWwkWdVha4s38XM/pa/yr47av7+z3VTmvDRyAHc
+              aT92whREFpLv9cj5lTeJSibyr/Mrm/YtjCZVWgaOYIhwrXwKLqPr/11inWsAkfIy
+              tvHWTxZYEcXLgAXFuUuaS3uF9gEiNQwzGTU1v0FqkqTBr4B8nW3HCN47XUu0t8Y0
+              e+lf4s4OxQawWD79J9/5d3Ry0vbV3Am1FtGJiJvOwRsIfVChDpYStTcHTCMqtvWb
+              V6L11BWkpzGXSW4Hv43qa+GSYOD2QU68Mb59oSk2OB+BtOLpJofmbGEGgvmwyCI9
+              MwIDAQAB
+              -----END PUBLIC KEY-----
+          OpaAllowField: allow
+          OpaBody: "true"
+          OpaHeaders:
+            X-Allowed: allow
+          OpaHttpStatusField: allow_status_code
+          OpaResponseHeaders:
+            X-Allowed: allow
+          OpaUrl: http://opa:8181/v1/data/authz
+          PayloadFields:
+            - exp
+          Required: "true"
+# static configuration
+# core:
+#   defaultRuleSyntax: v2
+</file>
+
+<file path=".clinerules/build-testing-rules.md">
+## Brief overview
+此檔案定義了 Cline 在執行專案打包與建置測試時，應如何判斷測試成功或失敗的具體規則，以及測試的執行順序。這些規則適用於所有 Cline 執行的打包/建置流程。
+
+## 測試執行者
+- Cline 負責使用 `execute_command` 工具啟動專案的打包或建置命令。
+
+## 成功/失敗判定標準
+- **失敗條件：**
+    - 如果打包或建置命令執行完畢 (即 CLI 終端機返回到可輸入新指令的狀態)，但**沒有**從建置流程中觀察到明確的成功訊息，則該次測試應被視為**失敗**。
+- **成功條件：**
+    - 必須從建置流程中觀察到**明確的成功訊息** (例如 "Build successful", "Packaging complete", 或類似的正面確認)，才能將該次測試視為**成功**。
+    - 僅僅是命令執行完成而沒有錯誤訊息，不足以判定為成功。
+
+## 測試順序
+- **優先順序：** 必須先成功完成本機的打包與執行測試 (例如 `npm run build-front` 後，確認應用程式可以本地運行或其產出符合預期)。
+- **後續步驟：** 只有在本機測試成功後，才能進行容器化測試 (例如 `docker-compose build` 並啟動容器)。
+</file>
+
+<file path=".clinerules/project-workflow-and-testing.md">
+## Brief overview
+此檔案包含與使用者協同開發「React Traefik Dashboard v2 API Migration」專案時的特定工作流程指南、記憶庫使用規則、以及測試策略。部分規則可能也適用於其他專案。
+
+## Memory Bank Usage
+- **Mandatory Reading:** At the beginning of EVERY task, ALL core memory bank files (`projectbrief.md`, `productContext.md`, `activeContext.md`, `systemPatterns.md`, `techContext.md`, `progress.md`) MUST be read to understand the current project state. This is not optional.
+- **Accurate Updates:** Memory bank files, especially `activeContext.md` and `progress.md`, must be updated accurately and promptly to reflect the latest work done, discoveries, and next steps.
+- **Update Triggers:** Update memory bank files when:
+    - New project patterns or insights are discovered.
+    - Significant changes have been implemented.
+    - The user explicitly requests an update with "update memory bank" (ALL files must be reviewed).
+    - Context needs clarification.
+- **Reliance:** The Memory Bank is the primary source of truth for project context between sessions.
+
+## Project Context (React Traefik Dashboard)
+- **Primary Goal:** Migrate the dashboard from Traefik v1 API to v2 API.
+- **Core Technologies:** React, Redux, Node.js/Express (for backend proxy), D3.js, Docker.
+- **Key Files for Status:** `activeContext.md` and `progress.md` are critical for tracking current status and immediate next steps.
+
+## Testing Strategy
+- **Visual Testing by User:** Cline is NOT required to perform visual testing of the UI.
+- **Build/Packaging Test by Cline:** Testing conducted by Cline MUST ensure, at a minimum, that the project can be successfully built and packaged through its defined architecture (e.g., `npm run build-front`, `docker-compose build`).
+- **User's Responsibility:** The user will take over visual testing aspekts once Cline confirms the project can be packaged.
+
+## Context Verification and Assumptions
+- **Verify Before Acting:** When memory bank information seems outdated or conflicts with new findings (e.g., from `repomix-output.xml` or direct code inspection), prioritize verifying the actual state of the codebase.
+- **Do Not Assume Completion:** Do not assume a task described in the memory bank as "to-do" is still pending without first checking relevant source files if there's a possibility of prior undocumented completion. Update memory bank immediately upon such discoveries.
+
+## Communication Style
+- **Language:** Respond in繁體中文 (zh-TW).
+- **Task-Driven:** Focus on executing the user's requests step-by-step.
+- **Progress Updates:** Provide clear progress updates when significant milestones are reached or when prompted.
+</file>
+
+<file path="api/public/stylesheets/style.css">
+body {
+  padding: 50px;
+  font: 14px "Lucida Grande", Helvetica, Arial, sans-serif;
+}
+
+a {
+  color: #00B7FF;
+}
+</file>
+
+<file path="api/.gitignore">
+# See https://help.github.com/ignore-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+
+# misc
+.DS_Store
+.env
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+</file>
+
+<file path="config/default.json">
+{
+    "db_path": "./data/cache.db"
+}
+</file>
+
+<file path="config/test.json">
+{
+    "db_path": "./test/data/cache.db"
+}
+</file>
+
+<file path="memory-bank/productContext.md">
+# Product Context: React Traefik Dashboard v2 API Migration
+
+## 1. Problem Solved
+
+The current React dashboard provides a visual interface for monitoring Traefik v1 instances. However, Traefik has evolved, and v2 introduced significant changes, including a new API structure. Users running Traefik v2 cannot use the existing dashboard effectively, lacking visibility into their modern Traefik deployments. This project addresses that gap by updating the dashboard to be compatible with the Traefik v2 API.
+
+## 2. Target Audience
+
+- Developers and Operations personnel who use Traefik v2 as their edge router/load balancer.
+- Users of the previous v1 dashboard who have upgraded or plan to upgrade their Traefik instances.
+
+## 3. How it Should Work (Post-Migration)
+
+- The dashboard should connect to a specified Traefik v2 API endpoint.
+- It should fetch and display key information available through the v2 API, such as:
+    - Entrypoints
+    - Routers (including middleware and services)
+    - Services (including server status)
+    - Middleware configurations
+    - TLS Certificates
+    - Traefik instance health/status overview.
+- The user interface should present this information clearly and intuitively, similar to the v1 dashboard's intent but reflecting v2 concepts.
+- Data fetching should be efficient, potentially using polling or other mechanisms suitable for real-time monitoring.
+- Error handling should gracefully manage API connection issues or unexpected data formats.
+
+## 4. User Experience Goals
+
+- **Clarity:** Information should be presented in a way that is easy to understand for users familiar with Traefik v2 concepts.
+- **Responsiveness:** The UI should feel responsive, even when handling potentially large amounts of data from the API.
+- **Reliability:** The dashboard should reliably reflect the state of the connected Traefik v2 instance.
+- **Ease of Use:** Connecting to a Traefik instance and navigating the dashboard should be straightforward.
+
+## 5. Key Features (Mapping v1 to v2)
+
+*(Mapping based on initial analysis - requires further refinement as UI components are analyzed)*
+
+- **Displaying Frontends/Backends/Servers (v1 `/api/providers`):**
+    - Mapped to **v2 `/api/http/routers`**: Provides routing rules, entrypoints, middleware, and the target service. (Analogous to v1 Frontends + linking).
+    - Mapped to **v2 `/api/http/services`**: Provides load balancing configuration and server details (IPs, ports, status). (Analogous to v1 Backends + Servers).
+    - Mapped to **v2 `/api/entrypoints`**: Provides information about listening ports.
+    - Mapped to **v2 `/api/overview`**: Provides general health and status.
+- **Search Functionality:** Needs to be adapted to search across v2 routers, services, and potentially entrypoints based on the new data structures.
+- **URL Configuration:** Handled by backend `GET/PUT /api/url`, likely requires minimal changes unless v2 API default port/path differs significantly.
+</file>
+
+<file path="memory-bank/projectbrief.md">
+# Project Brief: React Traefik Dashboard v2 API Migration
+
+## 1. Project Goal
+
+The primary goal of this project is to update the existing React-based Traefik dashboard to utilize the Traefik v2 API instead of the currently implemented v1 API. This involves identifying all v1 API interactions within the codebase and replacing them with their corresponding v2 equivalents.
+
+## 2. Core Requirements
+
+- **API Migration:** Replace all Traefik v1 API calls with Traefik v2 API calls.
+- **Functionality Preservation:** Ensure all existing dashboard features (e.g., viewing services, routers, health checks) continue to function correctly with the v2 API.
+- **Compatibility:** The updated dashboard should be compatible with Traefik v2.x versions.
+- **Maintainability:** The updated code should follow best practices for clarity and ease of future maintenance.
+
+## 3. Scope
+
+- **In Scope:**
+    - Analysis of existing code to identify v1 API endpoints used.
+    - Researching Traefik v2 API documentation for equivalent endpoints and data structures.
+    - Refactoring React components and API interaction logic (e.g., actions, reducers, API service files) to use the v2 API.
+    - Testing the dashboard against a Traefik v2 instance to ensure functionality.
+- **Out of Scope:**
+    - Adding new features not present in the original dashboard.
+    - Major UI/UX redesigns unrelated to the API migration.
+    - Support for Traefik versions other than v2.x.
+    - Backend API changes (assuming the `api/` directory serves a different purpose or is a mock).
+
+## 4. Key Stakeholders
+
+- Development Team (Cline & User)
+
+## 5. Success Metrics
+
+- All dashboard features function as expected when connected to a Traefik v2 instance.
+- No remaining Traefik v1 API calls in the frontend codebase.
+- Codebase is updated and follows modern React practices where applicable during the refactoring.
+</file>
+
+<file path="src/components/Search.js">
+import React, { Component } from 'react'
+import PropTypes from 'prop-types'
+
+export default class Search extends Component {
+  constructor(props) {
+    super(props);
+    
+    this.state = {value: ''};
+    this.handleChange = this.handleChange.bind(this);
+  }
+
+  componentDidUpdate(){
+  }
+
+  handleChange(event) {
+    const { onChange } = this.props;
+    this.setState({value: event.target.value});
+    onChange(event.target.value);
+  }
+
+  render() {
+    return (
+      <div className="row justify-content-md-center traefik-form-search">
+        <form className="form-inline">
+          <label className="mr-sm-2" htmlFor="inlineFormInput">Filter traefik routes:</label>
+          <input type="text" value={this.state.value} onChange={this.handleChange} className="form-control mb-2 mr-sm-2 mb-sm-0" id="inlineFormInput" placeholder="Traefik query" />
+        </form>
+      </div>
+    )
+  }
+}
+
+Search.propTypes = {
+  onChange: PropTypes.func.isRequired
+}
+</file>
+
+<file path="test/data/cache.db">
+{"name":"url","value":"https://demo6651367.mockable.io","_id":"QKFLV14BHDxbe2hw"}
+</file>
+
+<file path=".gitlab-ci.yml">
+image: "e4e-harbor.deltaww.com/docker-hub/library/alpine:3.13"
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_HOST: "tcp://localhost:2375"
+stages:
+  - build
+  - deploy
+  - sast
+
+include:
+  - project: 'corp/it/itsec/sec/infra/ci-template'
+    ref: master
+    file:
+      - 'build.yml'
+      # - 'kaniko-build-cli.yml' # for build cli image stage
+      - 'update-service-chart.yml'
+      - 'sast-fortify.yml'
+      # - 'mongodb-bundle.yml' # for restore stage
+      # - 'sast-fortify.yml' # for test stage
+      # - 'sonarqube-check.yml' # for sonarqube-check stage
+
+update-service-chart:
+  variables:
+    CD_CHART_REPO: core-api-chart
+
+# sonarqube-check:
+#   variables:
+#     SONAR_PROJECTKEY: "backend-monolith"  # sonarqube UI create same project_key
+</file>
+
+<file path=".gitpod.yml">
+# This configuration file was automatically generated by Gitpod.
+# Please adjust to your needs (see https://www.gitpod.io/docs/introduction/learn-gitpod/gitpod-yaml)
+# and commit this file to your remote git repository to share the goodness with others.
+
+# Learn more from ready-to-use templates: https://www.gitpod.io/docs/introduction/getting-started/quickstart
+
+tasks:
+  - init: npm install
+    command: npm run start
+</file>
+
+<file path="docker-compose.yml">
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: react-traefik-dashboard-app
+    ports:
+      - "3001:3001" # Expose backend server port
+    volumes:
+      # Mount data directory for NeDB persistence
+      - ./data:/usr/src/app/data
+      # Mount docker socket for backend's dockerode (read-only)
+      # Note: This gives the backend container access to the Docker daemon,
+      # which might be a security concern depending on the environment.
+      # Needed for the automatic URL detection feature.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - NODE_ENV=production
+      # Optionally set the default Traefik URL if auto-detection is unreliable in Docker
+      # - TRAEFIK_API_URL=http://traefik:8080
+    networks:
+      - traefik-net
+
+  traefik:
+    image: traefik:v2.11.24 # Use a specific Traefik v2 version
+    container_name: traefik-for-dashboard-test
+    command:
+      # Enable API and dashboard (insecure for testing only!)
+      - "--api.insecure=true"
+      - "--api.dashboard=true"
+      # Configure Docker provider
+      - "--providers.docker=true"
+      # Don't expose all containers by default, use labels
+      - "--providers.docker.exposedbydefault=false"
+      # Define entrypoints
+      - "--entrypoints.web.address=:80"
+      # Log level (optional)
+      - "--log.level=DEBUG"
+    ports:
+      # Expose web entrypoint if needed for testing services through Traefik
+      - "80:80"
+      - "443:443"
+      # Expose dashboard/API port ONLY if you need to access it directly from host
+      - "8080:8080" # Usually not needed, app service accesses it internally
+    volumes:
+      # Mount Docker socket to allow Traefik to discover services
+      - "./traefik/conf/traefik.yml:/etc/traefik/traefik.yml"
+      - "./traefik/conf/dynaConfs:/etc/traefik/dynaConfs"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      - traefik-net
+    # Add labels if you want Traefik to route to the dashboard app itself (optional)
+    # labels:
+    #   - "traefik.enable=true"
+    #   - "traefik.http.routers.dashboard-app.rule=Host(`dashboard.localhost`)" # Example rule
+    #   - "traefik.http.routers.dashboard-app.service=dashboard-app-svc"
+    #   - "traefik.http.services.dashboard-app-svc.loadbalancer.server.port=3001"
+
+networks:
+  traefik-net:
+    driver: bridge
+</file>
+
+<file path="api/bin/www">
+#!/usr/bin/env node
+
+/**
+ * Module dependencies.
+ */
+
+var app = require('../app');
+var debug = require('debug')('api:server');
+var http = require('http');
+
+/**
+ * Get port from environment and store in Express.
+ */
+
+var port = normalizePort(process.env.PORT || '3001');
+app.set('port', port);
+
+/**
+ * Create HTTP server.
+ */
+
+var server = http.createServer(app);
+
+/**
+ * Listen on provided port, on all network interfaces.
+ */
+
+server.listen(port);
+server.on('error', onError);
+server.on('listening', onListening);
+
+/**
+ * Normalize a port into a number, string, or false.
+ */
+
+function normalizePort(val) {
+  var port = parseInt(val, 10);
+
+  if (isNaN(port)) {
+    // named pipe
+    return val;
+  }
+
+  if (port >= 0) {
+    // port number
+    return port;
+  }
+
+  return false;
+}
+
+/**
+ * Event listener for HTTP server "error" event.
+ */
+
+function onError(error) {
+  if (error.syscall !== 'listen') {
+    throw error;
+  }
+
+  var bind = typeof port === 'string'
+    ? 'Pipe ' + port
+    : 'Port ' + port;
+
+  // handle specific listen errors with friendly messages
+  switch (error.code) {
+    case 'EACCES':
+      console.error(bind + ' requires elevated privileges');
+      process.exit(1);
+      break;
+    case 'EADDRINUSE':
+      console.error(bind + ' is already in use');
+      process.exit(1);
+      break;
+    default:
+      throw error;
+  }
+}
+
+/**
+ * Event listener for HTTP server "listening" event.
+ */
+
+function onListening() {
+  var addr = server.address();
+  var bind = typeof addr === 'string'
+    ? 'pipe ' + addr
+    : 'port ' + addr.port;
+  debug('Listening on ' + bind);
+}
+</file>
+
+<file path="api/app.js">
+var express = require('express');
+var path = require('path');
+var logger = require('morgan');
+var bodyParser = require('body-parser');
+var cors = require('cors');
+
+var api = require('./routes/api');
+
+var app = express();
+app.use(cors());
+
+// uncomment after placing your favicon in /public
+//app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
+app.use(logger('dev'));
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(express.static(path.join(__dirname, '../build')));
+
+app.use('/api', api);
+
+// catch 404 and forward to error handler
+app.use(function(req, res, next) {
+  var err = new Error('Not Found');
+  err.status = 404;
+  next(err);
+});
+
+// error handler
+app.use(function(err, req, res, next) {
+  // set locals, only providing error in development
+  res.locals.message = err.message;
+  res.locals.error = req.app.get('env') === 'development' ? err : {};
+
+  // render the error page
+  res.status(err.status || 500);
+  res.json(err);
+});
+
+module.exports = app;
+</file>
+
+<file path="memory-bank/activeContext.md">
+# Active Context: React Traefik Dashboard v2 API Migration
+
+## 1. Current Work Focus
+
+- **Finalizing Analysis & Handover for Testing:** Concluding the analysis of the current codebase, ensuring all findings are documented, and preparing for the user to take over for build/packaging tests and subsequent visual testing.
+- **Memory Bank Update:** Ensuring Memory Bank accurately reflects the latest project status and testing strategy.
+
+## 2. Recent Changes
+
+- Analyzed `repomix-output.xml`.
+- Confirmed backend API proxies (`api/routes/api.js`) for all required Traefik v2 endpoints are implemented.
+- Confirmed frontend Redux actions (`src/actions/index.js`) for fetching all v2 data types are implemented.
+- Confirmed frontend Redux reducers (`src/reducers/index.js`) for storing all v2 data types in the state are implemented.
+- Reviewed `src/components/ThreeJSFlow.js` and found **substantial existing integration for accessing, filtering, and visualizing all planned v2 data types** (overview, entrypoints, middlewares, TLS certificates, in addition to routers and services).
+- Updated `progress.md` to reflect the advanced state of component integration, adjusting overall progress.
+- Updated `activeContext.md` (this file) to reflect the current status.
+- Confirmed `systemPatterns.md` and `techContext.md` are up-to-date.
+- Created `.clinerules/project-workflow-and-testing.md` to document project-specific guidelines, including the new testing strategy.
+
+## 3. Next Steps (Immediate)
+
+- **Confirm Code Readiness for Build Test:** Based on analysis, the core migration logic (backend proxies, Redux store, component data handling) appears to be in place.
+- **Handover to User for Testing:**
+    - Cline's responsibility for this phase concludes with ensuring the conceptual completeness of the code for migration.
+    - User will perform build/packaging tests (e.g., `npm run build-front`, `docker-compose build`).
+    - User will then perform visual testing of the UI.
+- **UI Refinement (Post-Testing by User):** Based on user's visual testing feedback, further UI refinements can be planned.
+- **Code Review & Cleanup (User Discretion):** User may choose to review `ThreeJSFlow.js` for refactoring.
+
+## 4. Active Decisions & Considerations
+
+- **Memory Bank Synchronization:** Ensuring Memory Bank accurately reflects the codebase is paramount.
+- **API Completeness:** The goal is to proxy and utilize all relevant Traefik v2 API endpoints as defined in `productContext.md`.
+- **Frontend Data Handling:** Efficiently fetching, storing, and rendering multiple types of API data (routers, services, overview, etc.) in Redux and React components.
+- **Backward Compatibility (Out of Scope):** Focus is solely on Traefik v2.
+
+## 5. Important Patterns & Preferences
+
+- **Backend Proxy:** Node.js/Express backend in `api/` acts as a simple proxy to the Traefik API. New endpoints will follow this pattern.
+- **Frontend State Management:** Redux with `redux-thunk` for asynchronous actions. Data is fetched via `isomorphic-fetch`.
+- **Component-Based UI:** React components in `src/components/` and `src/containers/`.
+- **Visualization:** D3.js via a custom `Tree` class, integrated into the `ThreeJSFlow.js` React component.
+
+## 6. Learnings & Insights
+
+- **Project State Discrepancy:** Initial Memory Bank state was behind actual codebase progress, highlighting the importance of tools like `repomix-output.xml` for context recovery.
+- **Backend Progress (Completed):** All planned proxy routes in `api/routes/api.js` for Traefik v2 API endpoints are implemented.
+- **Frontend Progress:**
+    - `src/actions/index.js`: All actions for v2 data implemented (Completed).
+    - `src/reducers/index.js`: Handles all v2 data types (Completed).
+    - `src/components/ThreeJSFlow.js`: Substantial integration for all v2 data types exists; primary focus is now on refinement and testing.
+- **Git Repository:** Project will be pushed to `ssh://git@e4e-vcs.deltaww.com:8080/andrew-test/infra/react-traefik.git`.
+</file>
+
+<file path="memory-bank/systemPatterns.md">
+# System Patterns: React Traefik Dashboard v2 API Migration
+
+## 1. System Architecture Overview
+
+*(Based on `repomix-output.xml` analysis and current project state)*
+
+- **Frontend:** React application (`src/`) using Create React App (`react-scripts`).
+    - **UI Components:** Located in `src/components/` (e.g., `ThreeJSFlow.js`, `Search.js`, `UrlInput.js`).
+    - **Containers:** Smart components in `src/containers/` (e.g., `AsyncApp.js`, `Root.js`) connecting UI to Redux.
+    - **State Management:** Redux (`src/actions/`, `src/reducers/`, `src/store/`) with `redux-thunk` for async operations.
+    - **API Interaction:** Handled within Redux actions (`src/actions/index.js`) using `isomorphic-fetch`, calling the backend proxy.
+- **Backend API (`api/`):** Node.js/Express application.
+    - **Purpose:** Acts as a proxy to the Traefik API and manages Traefik URL configuration (stored in NeDB via `config/default.json`).
+    - **Routes (`api/routes/api.js`):**
+        - `GET /api/url`: Retrieves the configured Traefik API URL.
+        - `PUT /api/url`: Saves/updates the Traefik API URL.
+        - `GET /api/v2/http/routers`: Proxies to Traefik v2 `/api/http/routers`. (Implemented)
+        - `GET /api/v2/http/services`: Proxies to Traefik v2 `/api/http/services`. (Implemented)
+        - `GET /api/v2/overview`: Proxies to Traefik v2 `/api/overview`. (Implemented)
+        - `GET /api/v2/entrypoints`: Proxies to Traefik v2 `/api/entrypoints`. (Implemented)
+        - `GET /api/v2/http/middlewares`: Proxies to Traefik v2 `/api/http/middlewares`. (Implemented)
+        - `GET /api/v2/tls/certificates`: Proxies to Traefik v2 `/api/tls/certificates`. (Implemented)
+- **Configuration:** `config` npm package with `config/default.json` and `config/test.json`.
+- **Build/Deployment:** Docker (`Dockerfile`, `docker-compose.yml`) for containerization. `npm run build-front` (via `react-scripts build`) for frontend.
+
+```mermaid
+graph TD
+    subgraph Frontend (React App - src/)
+        UI[UI Components - src/components] --> Containers
+        Containers[Containers - src/containers] --> Actions[Redux Actions - src/actions]
+        Actions --> Reducers[Redux Reducers - src/reducers]
+        Reducers --> ReduxStore[Redux Store - src/store]
+        Containers --> ReduxStore
+    end
+
+    subgraph Backend_Proxy (Node.js/Express - api/)
+        APIRoutes[API Routes - api/routes/api.js] --> AppLogic[App Logic - api/app.js]
+        AppLogic --> DBConfig[URL Config (NeDB) - config/]
+        
+        APIRoutes -- "/api/url" --> DBConfig
+        APIRoutes -- "/api/v2/http/routers" --> TraefikAPI_V2_Routers
+        APIRoutes -- "/api/v2/http/services" --> TraefikAPI_V2_Services
+        APIRoutes -- "/api/v2/overview" --> TraefikAPI_V2_Overview
+        APIRoutes -- "/api/v2/entrypoints" --> TraefikAPI_V2_Entrypoints
+        APIRoutes -- "/api/v2/http/middlewares" --> TraefikAPI_V2_Middlewares
+        APIRoutes -- "/api/v2/tls/certificates" --> TraefikAPI_V2_TLS
+    end
+
+    subgraph Traefik_Instance (Traefik v2)
+        TraefikAPI_V2_Routers["/api/http/routers"]
+        TraefikAPI_V2_Services["/api/http/services"]
+        TraefikAPI_V2_Overview["/api/overview"]
+        TraefikAPI_V2_Entrypoints["/api/entrypoints"]
+        TraefikAPI_V2_Middlewares["/api/http/middlewares"]
+        TraefikAPI_V2_TLS["/api/tls/certificates"]
+    end
+
+    UserBrowser[User Browser] --> Frontend
+    Frontend -- HTTP Requests --> Backend_Proxy
+    
+    %% Style for implemented
+    style TraefikAPI_V2_Routers fill:#ccffcc,stroke:#333,stroke-width:2px
+    style TraefikAPI_V2_Services fill:#ccffcc,stroke:#333,stroke-width:2px
+    style TraefikAPI_V2_Overview fill:#ccffcc,stroke:#333,stroke-width:2px
+    style TraefikAPI_V2_Entrypoints fill:#ccffcc,stroke:#333,stroke-width:2px
+    style TraefikAPI_V2_Middlewares fill:#ccffcc,stroke:#333,stroke-width:2px
+    style TraefikAPI_V2_TLS fill:#ccffcc,stroke:#333,stroke-width:2px
+```
+
+*(Diagram and description updated to reflect that all backend proxy routes are implemented.)*
+
+## 2. Key Technical Decisions (Current)
+
+- **Framework:** React (v16.14.0) for the frontend.
+- **State Management:** Redux with `redux-thunk`.
+- **Backend:** Node.js/Express for API proxy and URL configuration.
+- **Styling:** Standard CSS files.
+- **Visualization:** D3.js (v4) integrated into `ThreeJSFlow.js` React component via a custom `Tree` class.
+- **API Client:** `isomorphic-fetch`.
+
+## 3. Design Patterns
+
+- **Container/Presentational Component Pattern:** Evident from `src/components/` vs `src/containers/`.
+- **Action-Reducer Pattern:** Core of Redux implementation.
+- **Proxy Pattern:** Backend API acts as a proxy to the Traefik API.
+- **Module Pattern:** Used in Node.js backend.
+
+## 4. Component Relationships (High-Level)
+
+- `Root.js` initializes the Redux Provider.
+- `AsyncApp.js` is the main application container, managing API calls via Redux actions and passing data to presentational components.
+- `UrlInput.js` allows users to set the Traefik API URL, which is persisted by the backend.
+- `Search.js` provides filtering capabilities for the displayed Traefik data.
+- `ThreeJSFlow.js` is responsible for rendering the D3.js visualization of Traefik data (all v2 data types are now being integrated).
+
+## 5. Critical Implementation Paths (Current & Next Steps)
+
+- **Backend API Proxy (Completed):**
+    - All routes in `api/routes/api.js` for `/overview`, `/entrypoints`, `/http/middlewares`, `/tls/certificates`, `/http/routers`, and `/http/services` are implemented.
+- **Frontend Data Integration (Completed for Actions & Reducers, Component Integration in Progress):**
+    - **Actions (`src/actions/index.js` - Completed):** Action types and creators for all v2 data types are implemented.
+    - **Reducers (`src/reducers/index.js` - Completed):** Reducers store all v2 data types in the Redux state.
+    - **Components (`src/components/ThreeJSFlow.js`, etc. - In Progress/Refinement):** Components are being updated to consume and visualize/display all v2 data. Filtering logic is also being adapted.
+- **Configuration (`src/Conf.js`):** `API_URL` is empty, relying on relative paths to the backend proxy. Traefik URL itself is managed via `GET/PUT /api/url`. This setup is stable.
+- **Data Transformation & Consumption:** Data from Traefik v2 API (via backend proxy) is processed in Redux actions/reducers and consumed by React components. This pattern will be extended for new data types.
+</file>
+
+<file path="memory-bank/techContext.md">
+# Technical Context: React Traefik Dashboard v2 API Migration
+
+## 1. Core Technologies
+
+- **Frontend:**
+    - React (`react: "^16.14.0"` as per `package.json`)
+    - Redux (`redux: "^4.2.0"`, `react-redux: "^5.0.4"`) for state management.
+    - `redux-thunk` for asynchronous actions.
+    - `isomorphic-fetch` for HTTP requests.
+    - D3.js (`d3: "^4.8.0"`) for visualization, integrated into `ThreeJSFlow.js`.
+    - Standard CSS.
+- **Backend (`api/` directory):**
+    - Node.js (Dockerfile uses `node:18-alpine`).
+    - Express (`express: "~4.15.2"`).
+    - `config` npm package for configuration management.
+    - `nedb` for simple database (URL persistence).
+    - `request` for proxying HTTP requests.
+    - `dockerode` for Docker interaction (automatic URL discovery).
+- **Build/Development:**
+    - npm (based on `package-lock.json` and scripts in `package.json`).
+    - Create React App scripts (`react-scripts: "4.0.3"`) for frontend build (`build-front`) and dev server (`start-front`).
+    - Docker (`Dockerfile`, `docker-compose.yml`) for containerization of the application and a test Traefik v2 instance.
+- **Testing:**
+    - Mocha (`mocha: "^3.4.1"`) with Chai (`chai: "^3.5.0"`, `chai-http: "^3.0.0"`) for backend API tests (`test/test.js`).
+    - Jest (via `react-scripts test --env=jsdom`) for frontend component tests (e.g., `App.test.js`).
+
+## 2. Development Setup (Confirmed & Assumptions)
+
+- **Prerequisites:** Node.js (v18 recommended), npm, Docker.
+- **Git Repository:** `ssh://git@e4e-vcs.deltaww.com:8080/andrew-test/infra/react-traefik.git` (Project is intended to be pushed here).
+- **Installation:** Run `npm install` in the root directory. The `api/` directory does not have its own `package.json`, so root-level install covers backend dependencies too.
+- **Running Application (Docker Compose - Recommended for Integrated Testing):**
+    - `docker-compose up --build` will build and run both the `app` (React frontend + Node.js backend proxy) and a `traefik` v2 service.
+    - The application will be accessible at `http://localhost:3001`.
+    - Traefik API (for the test instance) is at `http://traefik:8080` (internally within Docker network) or potentially `http://localhost:8080` if port is exposed from `docker-compose.yml`.
+- **Running Frontend (Standalone):** `npm run start-front` (runs `react-scripts start` on port 3000, proxies to backend on 3001).
+- **Running Backend (Standalone):** `npm run start-api` (runs `node ./api/bin/www` on port 3001).
+- **Running Tests:**
+    - Backend API tests: `npm test` (runs Mocha tests).
+    - Frontend tests: `npm run test-front` (runs Jest tests).
+- **Traefik Instance:**
+    - For development and testing, `docker-compose.yml` provides a Traefik v2.10 instance.
+    - The application's backend can auto-detect Traefik URL if running in Docker with socket mounted, or URL can be manually set via UI.
+
+## 3. Technical Constraints & Considerations
+
+- **Browser Compatibility:** Target modern web browsers. (Specifics still TBD, but React 16 has good compatibility).
+- **API Rate Limiting:** Be mindful of potential rate limits on the Traefik API, especially if using polling.
+- **Data Volume:** Traefik API responses can be large. Efficient data handling and rendering are important.
+- **Authentication/Authorization:** How does the dashboard authenticate with the Traefik API? (v1 might be unauthenticated by default, v2 might have options). Needs investigation.
+- **CORS:** Cross-Origin Resource Sharing might be a factor if the dashboard is served from a different domain/port than the Traefik API. The backend (`api/`) might be acting as a CORS proxy.
+
+## 4. Dependencies (High-Level - Check `package.json` for specifics)
+
+- **Frontend:** `react`, `react-dom`, `redux`, `react-redux`, `redux-thunk` (likely), `three`, potentially `axios`, `react-router-dom`.
+- **Backend (`api/`):** `express`, `config`, `morgan`, `debug`, potentially `cors`, `node-fetch` or `axios`.
+
+## 5. Tool Usage Patterns (To Be Discovered)
+
+- Linting/Formatting tools (e.g., ESLint, Prettier).
+- Specific debugging techniques used.
+- Deployment scripts or CI/CD setup (if any).
+</file>
+
+<file path="src/containers/Root.js">
+import React, { Component } from 'react'
+import { Provider } from 'react-redux'
+import configureStore from '../store/configureStore'
+import AsyncApp from './AsyncApp'
+
+const store = configureStore()
+
+export default class Root extends Component {
+  render() {
+    return (
+      <Provider store={store}>
+        <AsyncApp traefik_url="http://192.168.0.32:8080"/>
+      </Provider>
+    )
+  }
+}
+</file>
+
+<file path="src/store/configureStore.js">
+import { createStore, applyMiddleware } from 'redux'
+import thunkMiddleware from 'redux-thunk'
+import { createLogger } from 'redux-logger'
+import rootReducer from '../reducers'
+
+const loggerMiddleware = createLogger()
+
+export default function configureStore(preloadedState) {
+  return createStore(
+    rootReducer,
+    preloadedState,
+    applyMiddleware(
+      thunkMiddleware,
+      loggerMiddleware
+    )
+  )
+}
+</file>
+
+<file path="src/App.css">
+.App {
+  text-align: center;
+}
+
+.App-logo {
+  animation: App-logo-spin infinite 20s linear;
+  height: 80px;
+}
+
+.App-header {
+  background-color: #222;
+  height: 150px;
+  padding: 20px;
+  color: white;
+}
+
+.App-intro {
+  font-size: large;
+}
+
+@keyframes App-logo-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+</file>
+
+<file path="src/App.js">
+import React, { Component } from 'react';
+import logo from './logo.svg';
+import Flow from './components/Flow.js';
+import './App.css';
+
+class App extends Component {
+  render() {
+    return (
+      <div className="App">
+        <div className="App-header">
+          <img src={logo} className="App-logo" alt="logo" />
+          <h2>Welcome to React</h2>
+        </div>
+        <p className="App-intro">
+          To get started, edit <code>src/App.js</code> and save to reload.
+        </p>
+		<Flow></Flow>
+      </div>
+    );
+  }
+}
+
+export default App;
+</file>
+
+<file path="src/App.test.js">
+import React from 'react';
+import ReactDOM from 'react-dom';
+import App from './App';
+
+it('renders without crashing', () => {
+  const div = document.createElement('div');
+  ReactDOM.render(<App />, div);
+});
+</file>
+
+<file path="src/index.js">
+import React from 'react'
+import { render } from 'react-dom'
+import Root from './containers/Root'
+import './index.css';
+
+render(
+  <Root />,
+  document.getElementById('root')
+)
+</file>
+
+<file path="test/test.js">
+//During the test the env variable is set to test
+process.env.NODE_ENV = 'test';
+//Require the dev-dependencies
+let chai = require('chai');
+let chaiHttp = require('chai-http');
+let server = require('../api/app.js');
+let should = chai.should();
+var config = require('config');
+var fs = require('fs');
+
+chai.use(chaiHttp);
+//Our parent block
+describe('API', () => {
+    before((done) => { //Before each test we empty the database
+        if(fs.existsSync(config.db_path)){
+            fs.unlinkSync(config.db_path);
+        }
+        return done();
+    });
+    
+    /*
+    * Test the /GET api/url before filling it
+    */
+    describe('/GET api/url', () => {
+      it('should return 404', (done) => {
+        chai.request(server)
+            .get('/api/url')
+            .end((err, res) => {
+                res.should.have.status(404);
+                res.body.should.be.a('object');
+                res.body.should.have.deep.property('message');
+                //
+                done();
+            });
+      });
+    });
+    
+    
+    /*
+    * Test the /PUT api/url filling and getting
+    */
+    describe('/PUT api/url', () => {
+      it('should return 200', (done) => {
+        chai.request(server)
+            .put('/api/url')
+            .send({ url: 'https://demo6651367.mockable.io' })
+            .end((err, res) => {
+                console.log(err);
+                res.should.have.status(200);
+                res.body.should.be.a('object');
+                res.body.should.have.deep.property('url');
+                //
+                done();
+            });
+      });
+    });
+    
+    describe('/GET api/url', () => {
+      it('should return 200', (done) => {
+        chai.request(server)
+            .get('/api/url')
+            .end((err, res) => {
+                console.log(err);
+                res.should.have.status(200);
+                res.body.should.be.a('object');
+                res.body.should.have.deep.property('url');
+                //
+                done();
+            });
+      });
+    });
+    
+    /*
+    * Test the /GET api/providers before filling it
+    */
+    describe('/GET api/providers', () => {
+      it('should return 200', (done) => {
+        chai.request(server)
+            .get('/api/providers')
+            .end((err, res) => {
+                console.log(err);
+                res.should.have.status(200);
+                res.body.should.be.a('object');
+                res.body.should.have.deep.property('docker.backends.backend-portainer.servers.server-portainer.url');
+                //
+                done();
+            });
+      });
+    });
+
+});
+return;
+</file>
+
+<file path="memory-bank/progress.md">
+# Progress: React Traefik Dashboard v2 API Migration
+
+## 1. Current Status
+
+- **Phase:** Memory Bank Synchronization, Backend Migration (Completion), Frontend Integration (Expansion).
+- **Overall Progress:** ~90% (Core development for Traefik v2 API migration, including backend proxies, frontend Redux store, and component data handling, is complete based on code analysis. Project is ready for build/packaging tests by the user, followed by visual testing and potential UI refinements).
+- **Memory Bank:** Updated to reflect current project state, including the new testing strategy.
+
+## 2. What Works (Current State - Mid-Migration)
+
+- **Backend Proxy (`api/routes/api.js` - Complete for planned V2 endpoints):**
+    - Node.js/Express backend successfully proxies:
+        - `GET /api/v2/http/routers` to Traefik v2 `/api/http/routers`.
+        - `GET /api/v2/http/services` to Traefik v2 `/api/http/services`.
+        - `GET /api/v2/overview` to Traefik v2 `/api/overview`.
+        - `GET /api/v2/entrypoints` to Traefik v2 `/api/entrypoints`.
+        - `GET /api/v2/http/middlewares` to Traefik v2 `/api/http/middlewares`.
+        - `GET /api/v2/tls/certificates` to Traefik v2 `/api/tls/certificates`.
+    - URL management (`GET/PUT /api/url`) remains functional.
+- **Frontend Integration (Partial):**
+    - Redux actions (`src/actions/index.js`) can fetch all planned Traefik v2 data types.
+    - Redux reducers (`src/reducers/index.js`) can store all planned Traefik v2 data types in the state.
+    - `AsyncApp.js` container handles fetching and polling of v2 data.
+    - `ThreeJSFlow.js` component can visualize all planned v2 data types (routers, services, overview, entrypoints, middlewares, TLS certificates), including search/filter functionality. (Substantial integration exists, may need refinement).
+- The basic React/Redux structure is in place and adapted for initial v2 data.
+
+## 3. What's Left to Build/Migrate
+
+- **Memory Bank Update (Completed for this cycle):**
+    - `activeContext.md` updated.
+    - `progress.md` updated (This update).
+    - `systemPatterns.md` confirmed accurate.
+    - `techContext.md` confirmed accurate.
+- **Implementation (Backend - Completed):**
+    - All planned Traefik v2 API proxy routes in `api/routes/api.js` are implemented.
+- **Implementation (Frontend - Expansion & Refinement - Next Steps):**
+    - **Redux State:**
+        - Expand Redux state in `src/reducers/index.js` to hold overview, entrypoints, middlewares, and TLS certificates data.
+    - **Redux Actions (Completed):**
+        - `src/actions/index.js` includes action types and creators for fetching all v2 data.
+        - `fetchTraefikV2Data` function fetches all these data types concurrently.
+    - **Redux Reducers (Completed):**
+        - `src/reducers/index.js` handles actions for all v2 data types and stores them in the Redux state.
+    - **Component Integration (Substantially Completed, UI Refinement Post-User-Testing):**
+        - `src/components/ThreeJSFlow.js` includes logic to access, filter, and visualize all planned v2 data types.
+        - UI refinements will be based on user feedback after visual testing.
+- **Testing (Next Major Steps):**
+    - **Build/Packaging Test (Cline-Executed, User-Verified):**
+        - Cline will execute build/packaging commands (e.g., `npm run build-front`, `docker-compose build`) using `execute_command`.
+        - Success requires an explicit success message from the build process, as per `.clinerules/build-testing-rules.md`. Mere completion without errors is insufficient.
+        - User to verify the outcome based on Cline's report of the build/packaging process.
+    - **Visual Testing (User-Led):** Following a successful build/packaging confirmed by Cline, the user will perform visual testing of the UI.
+- **Documentation:**
+    - Memory Bank updates completed for this development cycle.
+    - `.clinerules/project-workflow-and-testing.md` created.
+    - `README.md` update for v2 can be a future task.
+
+## 4. Known Issues / Blockers
+
+- **Lack of v1/v2 Instance for Direct Comparison/Testing:** Still need access to running Traefik v1 (for baseline comparison if any v1 behavior needs to be perfectly replicated) and a fully configured v2 (for development/testing against all API endpoints) instances. The `docker-compose.yml` provides a v2 instance, which is good for basic testing.
+- **API Granularity:** v2 API requires fetching and combining data from multiple endpoints. This is partially handled for routers/services, needs to be extended for other data types.
+- **React Version (v16, not v15 as previously thought based on package.json):** While `package.json` shows React 16.14.0, which is more modern than v15, it's still not the latest. Care should be taken with new patterns or libraries. (Correction: `package.json` shows `react: "^16.14.0"`, `src/actions/index.js` and `src/reducers/index.js` were updated based on `repomix-output.xml` which confirmed this version).
+
+## 5. Evolution of Project Decisions
+
+- **[Date]:** Initialized Memory Bank structure.
+- **[Date]:** Initial code analysis completed.
+- **[Current Date]:** Analyzed `repomix-output.xml`. Confirmed backend proxies, frontend actions, and reducers are complete. Reviewed `src/components/ThreeJSFlow.js` and found substantial existing integration for all v2 data types. Documented new testing strategy. Project ready for user-led build and visual tests.
+</file>
+
+<file path="src/components/UrlInput.js">
+import React, { Component } from 'react'
+import PropTypes from 'prop-types'
+
+export default class UrlInput extends Component {
+  constructor(props) {
+    super(props);
+    
+    this.handleChange = this.handleChange.bind(this);
+    this.handleSubmit = this.handleSubmit.bind(this);
+  }
+
+  componentDidUpdate(prevProps){
+    if(this.props.value != prevProps.value){
+      this.setState({ value: this.props.value });
+    }
+  }
+
+  handleSubmit(event) {
+    const { onClick } = this.props;
+    onClick(this.state.value);
+    event.preventDefault();    
+  }
+
+  handleChange(event) {
+    this.setState({value: event.target.value});
+  }
+
+  render() {
+    return (
+      <form className="form-inline my-2 my-lg-0" onSubmit={this.handleSubmit}>
+        <label className="" htmlFor="inlineFormInput" style={{color: 'white'}}>Traefik API url : </label>
+        <input type="text" value={this.state ? this.state.value : ''} onChange={this.handleChange} className="form-control mr-sm-2" id="inlineFormInput" placeholder="Traefik URL" />
+
+        <button type="submit" className="btn btn-outline-success  my-2 my-sm-0">Submit</button>
+      </form>
+    )
+  }
+}
+
+UrlInput.propTypes = {
+  value: PropTypes.string,
+  onClick: PropTypes.func.isRequired
+}
+</file>
+
+<file path="public/index.html">
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="shortcut icon" href="%PUBLIC_URL%/favicon.ico">
+    <!--
+      Notice the use of %PUBLIC_URL% in the tag above.
+      It will be replaced with the URL of the `public` folder during the build.
+      Only files inside the `public` folder can be referenced from the HTML.
+
+      Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
+      work correctly both with client-side routing and a non-root public URL.
+      Learn how to configure a non-root public URL by running `npm run build`.
+    -->
+    <title>Traefik React D3</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/css/bootstrap.min.css" integrity="sha384-rwoIResjU2yc3z8GV/NPeZWAv56rSmLldC3R/AZzGRnGxQQKnKkoFVhFQhNUwEyJ" crossorigin="anonymous">
+    <script src="https://code.jquery.com/jquery-3.1.1.slim.min.js" integrity="sha384-A7FZj7v+d/sdmMqp/nOQwliLvUsJfDHW+k9Omg/a/EheAdgtzNs3hpfag6Ed950n" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tether/1.4.0/js/tether.min.js" integrity="sha384-DztdAPBWPRXSA/3eYEEUWrWCy7G5KFbe8fFjk5JAIxUYHKkDx6Qin1DkWx51bBrb" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/js/bootstrap.min.js" integrity="sha384-vBWWzlZJ8ea9aCX4pEW3rVHjgjt7zpkNpZk+02D9phzyeVkE+jo0ieGizqPLForn" crossorigin="anonymous"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+</file>
+
+<file path="src/components/Tree.js">
+import * as d3 from "d3";
+import $ from 'jquery';
+
+export default class Tree {
+    constructor() {
+        this.svg = null;
+        this.svgContainer = null;
+        this.root1 = null;
+        this.root2 = null;
+    }
+
+    createTree(selector, data, orient, height) {
+        // Set the dimensions and margins of the diagram
+        var margin = {
+                top: 0,
+                right: 0,
+                bottom: 0,
+                left: 0
+            },
+            initWidth = Math.max(document.getElementById('d3-flow').clientWidth - 40, 1300),
+            initHeight = height,
+            depth = 180;
+        
+        console.log(initHeight);
+        var orient = orient || "left-to-right";
+        var coeff = orient == "left-to-right" ? 1 : -1;
+        margin.left = (initWidth) / 2 + coeff*50 + (coeff == -1 ? -1 * depth / 2 : -depth / 2);
+
+        var width = initWidth - margin.left - margin.right;
+        var height = initHeight - margin.top - margin.bottom;
+
+        // append the svg object to the body of the page
+        // appends a 'group' element to 'svg'
+        // moves the 'group' element to the top left margin
+        
+        this.svgContainer = d3.select(selector);
+
+        this.svg = this.svgContainer
+            .attr("width", width + margin.right + margin.left)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", "translate(" +
+                margin.left + "," + margin.top + ")");
+        
+        var svg = this.svg;
+
+        var drag = d3.drag()
+            .on("start", dragstarted)
+            .on("drag", dragged)
+            .on("end", dragended);
+        d3.select(selector).call(drag);
+
+        function dragstarted(d) {
+            d3.event.sourceEvent.stopPropagation();
+            d3.select(this).classed("dragging", true);
+        }
+
+        function dragged(d) {
+            var dxString = d3.select(this).attr("cx") || '0';
+            var dyString = d3.select(this).attr("cy") || '0';
+            var dx = parseFloat(dxString);
+            var dy = parseFloat(dyString);
+            var x0 = dx + d3.event.dx;
+            var y0 = dy + d3.event.dy;
+
+            d3.select(this).attr("cx", x0);
+            d3.select(this).attr("cy", y0);
+            d3.select(this).attr("transform", "translate(" + x0 + "," + y0 + ")");
+        }
+
+        function dragended(d) { /**/
+            d3.select(this).classed("dragging", false);
+        }
+
+        var i = 0,
+            duration = 350,
+            root;
+
+        // declares a tree layout and assigns the size
+        var treemap = d3.tree().size([height, width]);
+
+        // Assigns parent, children, height, depth
+        root = d3.hierarchy(data, function(d) {
+            return d.children;
+        });
+        root.x0 = width / 2;
+        root.y0 = height / 2;
+
+        // Collapse after the second level
+        //root.children.forEach(collapse);
+
+        update(root);
+
+        function getClassName(constant, d) {
+            var className = constant
+            if (d.data.route) {
+                className += ' ' + d.data.route.name
+            }
+            if (d.data.routes) {
+                className += ' ' + d.data.routes.map((r) => r.name).join(' ')
+            }
+            if(d.data.className){
+                className += ' ' + d.data.className
+            }
+            return className;
+        }
+
+        function update(source) {
+
+            // Assigns the x and y position for the nodes
+            var treeData = treemap(root);
+
+            // Compute the new tree layout.
+            var nodes = treeData.descendants(),
+                links = treeData.descendants().slice(1);
+
+            // Normalize for fixed-depth.
+            nodes.forEach(function(d) {
+                d.y = d.depth * (d.data.depth || depth)
+            });
+
+            // ****************** Nodes section ***************************
+
+            // Update the nodes...
+            var node = svg.selectAll('g.node')
+                .data(nodes, function(d) {
+                    return d.id || (d.id = ++i);
+                });
+
+            // Enter any new modes at the parent's previous position.
+            var nodeEnter = node.enter().append('g')
+                .attr('class', function(d) {
+                    return getClassName('node', d);
+                })
+                .attr("transform", function(d) {
+                    return "translate(" + source.y0 + "," + source.x0 + ")";
+                })
+                .on('click', click);
+
+            // Add Circle for the nodes
+            nodeEnter.append('circle')
+                .attr('class', function(d) {
+                    var className = 'node'
+                    if (d.data.rule) {
+                        className += ' ' + d.data.rule
+                    }
+                    if (d.data.rules) {
+                        className += ' ' + d.data.rules.join(' ')
+                    }
+                    return className;
+                })
+                .attr('r', function(d){
+                    return d.data.image ? 0 : 1e-6
+                });
+
+            // Add HTML for the nodes
+            var nodeHtml = nodeEnter.append('foreignObject')
+                .attr('class', function(d) {
+                    return getClassName('node-html-wrapper', d);
+                })
+                .attr("width", function(d) {
+                    return d.data.hasDetails ? (d.data.width || "250") : "80";
+                })
+                .attr("x", function(d) {
+                    return d.children || d._children ? coeff * -100 : (coeff == -1 ? -270 : 20);
+                })
+                .attr("y", "-2.7em")
+                .on('mouseover', function(d) {
+                    var classes = d3.select(this).attr('class')
+                        .replace('node-html-wrapper', '')
+                        .replace(' traefik-server', '')
+                        .split(" ")
+                        .join(', .');
+                    if (classes[0] == ',') {
+                        classes = classes.replace(', ', '');
+                    }
+                    d3.selectAll(classes).classed('node-active', true);
+                })
+                .on('mouseleave', function(d) {
+                    var classes = d3.select(this).attr('class')
+                        .replace('node-html-wrapper', '')
+                        .replace(' traefik-server', '')
+                        .split(" ")
+                        .join(', .');
+                    if (classes[0] == ',') {
+                        classes = classes.replace(', ', '');
+                    }
+                    d3.selectAll(classes).classed('node-active', false);
+                });
+            
+            nodeHtml.append('xhtml:div')
+                .attr('class', 'node-html')
+                .html(function(d) {
+                    return '<div class="node-name">' + d.data.name + '</div>' +
+                        '<div class="node-details">' + (d.data.details || '') + '</div>';
+                });
+
+            nodeHtml.filter(function(d) {
+                return !d.data.hasDetails
+            }).remove()
+
+            // Add labels for the nodes
+            var nodeText = nodeEnter.filter(function(d) {
+                return !d.data.hasDetails && !d.data.image
+            }).append('text')
+                .attr('class', function(d) {
+                    return getClassName('node-text', d);
+                })
+                .attr("dy", "-1.5em")
+                .attr("x", function(d) {
+                    return 0//d.children || d._children ? coeff * -13 : coeff * 13;
+                })
+                .attr("text-anchor", function(d) {
+                    return "middle";//d.children || d._children ? (coeff == 1 ? "end" : "start") : (coeff == 1 ? "start" : "end");
+                })
+                .text(function(d) {
+                    return d.data.name;
+                });
+            
+            // Add labels for the nodes
+            var nodeImages = nodeEnter.filter(function(d){
+                return d.data.image;
+            }).append("image")
+                .attr('xlink:href', function(d){
+                    return d.data.image.src;
+                })
+                .attr('cursor', 'pointer')
+                .attr('height', function(d){
+                    return d.data.image.height;
+                })
+                .attr('width', function(d){
+                    return d.data.image.width;
+                })
+                .attr('class', function(d) {
+                    return getClassName('node-image', d);
+                })
+                .attr("y", function(d) {
+                    return -d.data.image.height / 2 + 'px'
+                })
+                .attr("x", function(d) {
+                    var x = -d.data.image.width / 2;
+                    return x;
+                });
+            
+            nodeImages.filter(function(d) {
+                return !d.data.image
+            }).remove()
+
+            // UPDATE
+            var nodeUpdate = nodeEnter.merge(node);
+
+            // Transition to the proper position for the node
+            nodeUpdate.transition()
+                .duration(duration)
+                .attr("transform", function(d) {
+                    return "translate(" + coeff * d.y + "," + d.x + ")";
+                })
+                .on('end', (e) => {
+                    if(e.data.className === 'internet-root'){
+                        var top1 = $('.traefik-root').position().top;
+                        var top2 = $('.internet-root').position().top;
+                        svg.attr("transform", "translate(" + margin.left + "," + (margin.top + (top1-top2)/2) + ")");
+                    }
+                });;
+
+            // Update the node attributes and style
+            nodeUpdate.select('circle.node')
+                .attr('r', function(d){
+                    return d.data.image ? 1e-6 : 10
+                })
+                .attr('cursor', 'pointer');
+
+
+            // Remove any exiting nodes
+            var nodeExit = node.exit().transition()
+                .duration(duration)
+                .attr("opacity", 0)
+                .attr("transform", function(d) {
+                    return "translate(" + source.y + "," + source.x + ")";
+                })
+                .remove();
+
+            // On exit reduce the node circles size to 0
+            nodeExit.select('circle')
+                .attr('r', 1e-6);
+
+            // On exit reduce the opacity of text labels
+            nodeExit.select('text')
+                .style('fill-opacity', 1e-6);
+
+            // ****************** links section ***************************
+
+            // Update the links...
+            var link = svg.selectAll('path.link')
+                .data(links, function(d) {
+                    return d.id;
+                });
+
+            // Enter any new links at the parent's previous position.
+            var linkEnter = link.enter().insert('path', "g")
+                .attr('class', function(d) {
+                    return getClassName('link', d);
+                })
+                .attr("id", function(d, i) {
+                    return 'path-' + d.data.name
+                })
+                .attr('d', function(d) {
+                    var p = {
+                        x: source.x0,
+                        y: source.y0
+                    };
+                    return diagonal(p, p)
+                });
+
+            // UPDATE
+            var linkUpdate = linkEnter.merge(link);
+
+            // Transition back to the parent element position
+            linkUpdate.transition()
+                .duration(duration)
+                .attr('d', function(d) {
+                    return diagonal(d, d.parent)
+                });
+
+            // Remove any exiting links
+            link.exit().transition()
+                .duration(duration)
+                .attr('d', function(d) {
+                    var p = {
+                        x: source.x,
+                        y: source.y
+                    }
+                    return diagonal(p, p)
+                })
+                .remove();
+
+            // ****************** links text section ***************************
+
+            // Update the links...
+            var linkText = svg.selectAll('text.entrypoints')
+                .data(links);
+
+            // Add labels for the nodes
+            var linkTextEnter = linkText.enter().append('text')
+                .attr("dy", "-0.3em")
+                .attr('class', function(d) {
+                    return getClassName('entrypoints', d);
+                })
+                .attr("fill", "Black")
+                .style("font", "normal 12px Arial")
+                .append("textPath")
+                .attr("startOffset", "55.76%")
+                .style("text-anchor", "end")
+                .attr("xlink:href", function(d, i) {
+                    return '#path-' + d.data.name;
+                })
+                .text(function(d) {
+                    return d.data.entryPoints;
+                });
+
+            // Remove any exiting links
+            linkText.exit().remove();
+
+            // Store the old positions for transition.
+            nodes.forEach(function(d) {
+                d.x0 = d.x;
+                d.y0 = d.y;
+            });
+
+            // Creates a curved (diagonal) path from parent to the child nodes
+            function diagonal(s, d) {
+                var path = `M ${coeff*s.y} ${s.x}
+                C ${coeff*(s.y + d.y) / 2} ${s.x},
+                  ${coeff*(s.y + d.y) / 2} ${d.x},
+                  ${d.y} ${d.x}`
+
+                return path
+            }
+
+            // Toggle children on click.
+            function click(d) {
+                if (d.children) {
+                    d._children = d.children;
+                    d.children = null;
+                }
+                else {
+                    d.children = d._children;
+                    d._children = null;
+                }
+                update(d);
+            }
+        }
+    }
+}
+</file>
+
+<file path="src/Conf.js">
+//export const API_URL = "https://demo6651367.mockable.io"
+export const API_URL = ""
+</file>
+
+<file path="src/index.css">
+html{
+  width: 100%;
+  height: 100%;
+}
+body {
+  margin: 0;
+  padding: 0;
+  font-family: sans-serif;
+}
+
+.traefik-form-url{
+  margin-top: 15px;
+}
+
+.traefik-form-search{
+  margin: 10px 0;
+}
+
+#d3-flow-svg{
+  display: block;
+  margin: auto;
+}
+
+.block{
+  font-size: 12px;
+  word-break: break-word;
+  padding:5px;
+}
+
+.block .name{
+  font-weight: bold;
+  margin: -5px;
+  padding: 5px;
+  border-bottom: 1px solid #333;
+  margin-bottom: 5px;
+}
+
+.backend .name{
+  background-color: rgba(100, 100, 255, 0.4);
+}
+
+.backend .urls{
+  padding-left:15px;
+  list-style-type: circle;
+}
+
+.frontend .name{
+  background-color: rgba(100, 255,100, 0.4);
+}
+
+.frontend .routes{
+  padding-left:15px;
+  list-style-type: circle;
+}
+
+.node circle {
+  fill: #fff;
+  stroke: steelblue;
+  stroke-width: 3px;
+  transition: all 0.2s;
+}
+
+.node text {
+  font: 12px sans-serif;
+  transition: all 0.2s;
+}
+
+.link {
+  fill: none;
+  stroke: #ccc;
+  stroke-width: 2px;
+  transition: stroke 0.2s, stroke-width 0.2s;
+}
+
+.node-html{
+  font-size:0.8rem;
+  overflow: hidden;
+  word-break: break-all;
+  border: 2px solid steelblue;
+  padding: 8px;
+  box-shadow: 3px 2px 6px rgba(0,0,0,0.5);
+  transition: all 0.2s;
+  background-color: steelblue;
+  color:#fff;
+}
+
+.node-html ul{
+  margin: 0;
+  padding-left: 15px;
+  font-size:0.95em;
+}
+
+.node-name{
+  margin: -8px -8px 0 -8px;
+  padding: 8px;
+  border-bottom: 1px solid #003b65;
+  text-align: center;
+  font-weight:bold;
+}
+
+.node-details, .node-details *{
+  font-weight:normal !important;
+}
+
+.backend-link{
+  color:white;
+  cursor:pointer;
+}
+
+.backend-link:hover{
+  color:white;
+}
+
+.traefik-server .node-html{
+  background-color:#583;
+  border-color:#583;
+}
+
+.node-active * {
+  font-weight:bold;
+  transition: all 0.2s;
+  fill: #583;
+}
+
+.node-active .node-html{
+  border: 2px solid #583;
+}
+
+.node-active circle {
+  fill: #fff;
+  stroke: #583;
+  stroke-width: 5;
+  transition: all 0.2s;
+}
+
+.node text.node-active {
+  font: 12px sans-serif;
+  font-weight: bold;
+  transition: all 0.2s;
+}
+
+.link.node-active {
+  fill: none;
+  stroke: #583;
+  stroke-width: 4px;
+  transition: stroke 0.2s, stroke-width 0.2s;
+}
+</file>
+
+<file path="Dockerfile">
+FROM node:18-alpine
+
+# Create app directory
+RUN mkdir -p /usr/src/app
+WORKDIR /usr/src/app
+
+# Bundle app source
+COPY . /usr/src/app
+
+# Set NODE_OPTIONS for OpenSSL legacy provider for subsequent RUN commands
+ENV NODE_OPTIONS=--openssl-legacy-provider
+
+# Install all dependencies, generate package-lock.json if not present or update if needed,
+# executes post-install script and remove deps
+RUN npm install && \
+    npm run build-front && \
+    rm -rf node_modules
+
+# Install app production only dependencies
+RUN npm install --production --ignore-scripts && npm cache clean --force && cp -rp ./node_modules /tmp/node_modules
+
+EXPOSE 3001
+
+CMD [ "npm", "start" ]
+</file>
+
+<file path=".gitignore">
+# See https://help.github.com/ignore-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+
+# testing
+/coverage
+
+# production
+/build
+
+# data
+/api/cache.db
+/data
+
+# misc
+.DS_Store
+.env
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+</file>
+
+<file path="README.md">
+# react-traefik
+
+Interactive diagram view for traefik using React and D3
+
+[![Codefresh build status]( https://g.codefresh.io/api/badges/build?repoOwner=guillaumejacquart&repoName=react-traefik&branch=latest&pipelineName=react-traefik&accountName=guillaumejacquart&type=cf-1)]( https://g.codefresh.io/repositories/guillaumejacquart/react-traefik/builds?filter=trigger:build;branch:latest;service:591aebd418391f000191df52~react-traefik)
+
+![alt text](https://image.ibb.co/enAZi5/Sans_titre.png "Screenshot")
+
+# Setup
+The easiest way to install the package is using docker. The docker runs a web application that talks to the traefik api and exposes its own api for the dashboard to call.
+
+## Using docker
+The host you run the docker container on must have access to the traefik frontend for it to work.
+```sh
+docker run -d -p 3001:3001 --network=<traefik_network> ghiltoniel/traefik-react
+```
+
+Then go to [http://localhost:3001](http://localhost:3001) to access the dashboard
+You must fill out the traefik API URL on the header bar to access the dashboard
+
+## Traefik service discovery
+The container can also automatically discover the traefik API using the docker API to get Traefik IP address. For that, you must map the docker socket to the container volumes :
+
+```sh
+docker run -d -p 3001:3001 --network=<traefik_network> -v /var/run/docker.sock:/var/run/docker.sock ghiltoniel/traefik-react
+```
+</file>
+
+<file path="src/actions/index.js">
+import fetch from 'isomorphic-fetch'
+import { API_URL } from '../Conf'
+
+export const REQUEST_CONFIG = 'REQUEST_CONFIG'
+export const RECEIVE_CONFIG = 'RECEIVE_CONFIG'
+export const SET_URL = 'SET_URL'
+export const REQUEST_TRAEFIK_DATA = 'REQUEST_TRAEFIK_DATA' // Renamed from REQUEST_TRAEFIK_PROVIDERS
+export const RECEIVE_TRAEFIK_ROUTERS = 'RECEIVE_TRAEFIK_ROUTERS' // New for v2
+export const RECEIVE_TRAEFIK_SERVICES = 'RECEIVE_TRAEFIK_SERVICES' // New for v2
+export const RECEIVE_TRAEFIK_OVERVIEW = 'RECEIVE_TRAEFIK_OVERVIEW' // New for v2
+export const RECEIVE_TRAEFIK_ENTRYPOINTS = 'RECEIVE_TRAEFIK_ENTRYPOINTS' // New for v2
+export const RECEIVE_TRAEFIK_MIDDLEWARES = 'RECEIVE_TRAEFIK_MIDDLEWARES' // New for v2
+export const RECEIVE_TRAEFIK_TLS_CERTIFICATES = 'RECEIVE_TRAEFIK_TLS_CERTIFICATES' // New for v2
+export const RECEIVE_TRAEFIK_DATA_ERROR = 'RECEIVE_TRAEFIK_DATA_ERROR' // New for v2 errors
+// export const RECEIVE_TRAEFIK_PROVIDERS = 'RECEIVE_TRAEFIK_PROVIDERS' // Deprecated v1
+export const INVALIDATE_DATA = 'INVALIDATE_DATA'
+export const SEARCH = 'SEARCH'
+
+export function invalidateData() {
+  return {
+    type: INVALIDATE_DATA
+  }
+}
+
+function requestConfig() {
+  return {
+    type: REQUEST_CONFIG
+  }
+}
+
+function receiveConfig(json) {
+  return {
+    type: RECEIVE_CONFIG,
+    data: json
+  }
+}
+
+// Renamed from requestTraefikProviders
+function requestTraefikData() {
+  return {
+    type: REQUEST_TRAEFIK_DATA
+  }
+}
+
+// Deprecated v1
+// function receiveTraefikProviders(json) {
+//   return {
+//     type: RECEIVE_TRAEFIK_PROVIDERS,
+//     data: json,
+//     receivedAt: Date.now()
+//   }
+// }
+
+// New for v2 routers
+function receiveTraefikRouters(json) {
+  return {
+    type: RECEIVE_TRAEFIK_ROUTERS,
+    routers: json,
+    receivedAt: Date.now() // Use a single timestamp for related data
+  }
+}
+
+// New for v2 services
+function receiveTraefikServices(json) {
+  return {
+    type: RECEIVE_TRAEFIK_SERVICES,
+    services: json,
+    // receivedAt: Date.now() // Main data action will set the timestamp
+  }
+}
+
+// New for v2 overview
+function receiveTraefikOverview(json) {
+  return {
+    type: RECEIVE_TRAEFIK_OVERVIEW,
+    overview: json,
+  }
+}
+
+// New for v2 entrypoints
+function receiveTraefikEntrypoints(json) {
+  return {
+    type: RECEIVE_TRAEFIK_ENTRYPOINTS,
+    entrypoints: json,
+  }
+}
+
+// New for v2 middlewares
+function receiveTraefikMiddlewares(json) {
+  return {
+    type: RECEIVE_TRAEFIK_MIDDLEWARES,
+    middlewares: json,
+  }
+}
+
+// New for v2 TLS certificates
+function receiveTraefikTlsCertificates(json) {
+  return {
+    type: RECEIVE_TRAEFIK_TLS_CERTIFICATES,
+    tlsCertificates: json,
+  }
+}
+
+// New for v2 errors during data fetch
+function receiveTraefikDataError(error) {
+    return {
+        type: RECEIVE_TRAEFIK_DATA_ERROR,
+        error: error,
+        receivedAt: Date.now()
+    }
+}
+
+export function setUrl(url) {
+  return dispatch => {
+    return dispatch({
+      type: SET_URL,
+      data: url
+    })
+  }
+}
+
+export function search(query) {
+  return dispatch => {
+    return dispatch({
+      type: SEARCH,
+      data: query
+    })
+  }
+}
+
+export function fetchConfigReady() {
+  return dispatch => {
+    dispatch(requestConfig())
+    return fetch(`${API_URL}/api/url`)
+      .then(response => response.json())
+      .then((json) => {
+        if (json.status === 'ok') {
+          return dispatch(receiveConfig({
+            configReady: true,
+            traefik_url: json.url
+          }));
+        }
+        return dispatch(receiveConfig({
+          configReady: false,
+          error: json
+        }));
+      })
+      .catch(function (error) {
+        dispatch(receiveConfig({
+          configReady: false,
+          error: error
+        }))
+      });
+  }
+}
+
+// Renamed and modified for v2
+export function fetchTraefikData(traefik_url) {
+  return dispatch => {
+    dispatch(requestTraefikData())
+    return fetch(`${API_URL}/api/url`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        url: traefik_url
+      })
+    })
+      .then(response => response.json())
+      .then((json) => {
+        if (json.status === 'ok') {
+          // URL saved successfully, now fetch v2 data
+          return fetchTraefikV2Data(dispatch);
+        }
+        // If saving URL fails, dispatch an error
+        const error = new Error(json.message || 'Failed to save Traefik URL');
+        dispatch(receiveTraefikDataError(error.message)); // Dispatch specific data error
+        // Also update config state if needed, similar to original catch block
+        dispatch(receiveConfig({
+            configReady: false, // Indicate config is not ready due to error
+            error: error.message
+        }));
+        throw error; // Propagate error to stop further execution if necessary
+      })
+      .catch(function (error) {
+        // Catch errors from PUT /api/url or fetchTraefikV2Data
+        console.error("Error in fetchTraefikData chain:", error);
+        // Ensure a generic error state is set if not already handled
+        if (error.type !== RECEIVE_TRAEFIK_DATA_ERROR) {
+             dispatch(receiveTraefikDataError(error.message || 'Unknown error fetching Traefik data'));
+        }
+        // Also update config state if needed
+         dispatch(receiveConfig({
+            configReady: false, // Indicate config is not ready due to error
+            error: error.message || 'Unknown error during Traefik data fetch process'
+        }));
+      });
+  }
+}
+
+
+// Updated function to fetch all necessary v2 data concurrently
+function fetchTraefikV2Data(dispatch) {
+  const endpoints = {
+    routers: `${API_URL}/api/v2/http/routers`,
+    services: `${API_URL}/api/v2/http/services`,
+    overview: `${API_URL}/api/v2/overview`,
+    entrypoints: `${API_URL}/api/v2/entrypoints`,
+    middlewares: `${API_URL}/api/v2/http/middlewares`,
+    tlsCertificates: `${API_URL}/api/v2/tls/certificates`
+  };
+
+  const fetchPromises = Object.entries(endpoints).map(([key, url]) => {
+    return fetch(url).then(response => {
+      if (key === 'tlsCertificates' && response.status === 404) {
+        console.warn(`Traefik API endpoint for ${key} returned 404. Proceeding without TLS certificate data.`);
+        return { key, data: [] }; // Resolve with empty array for tlsCertificates on 404
+      }
+      if (!response.ok) { // For all other errors, or errors on other endpoints
+        throw new Error(`HTTP error ${response.status} fetching ${key} from ${url}`);
+      }
+      return response.json().then(data => ({ key, data }));
+    });
+  });
+
+  return Promise.all(fetchPromises)
+    .then(results => {
+      // results is an array of {key, data} objects
+      // Dispatch actions for each piece of data
+      // The first successful data piece (e.g., routers) will set the lastUpdated timestamp
+      let timestampSet = false;
+      results.forEach(result => {
+        switch (result.key) {
+          case 'routers':
+            dispatch(receiveTraefikRouters(result.data));
+            timestampSet = true; // Assuming routers is always fetched and sets the primary timestamp
+            break;
+          case 'services':
+            dispatch(receiveTraefikServices(result.data));
+            break;
+          case 'overview':
+            dispatch(receiveTraefikOverview(result.data));
+            break;
+          case 'entrypoints':
+            dispatch(receiveTraefikEntrypoints(result.data));
+            break;
+          case 'middlewares':
+            dispatch(receiveTraefikMiddlewares(result.data));
+            break;
+          case 'tlsCertificates':
+            dispatch(receiveTraefikTlsCertificates(result.data));
+            break;
+          default:
+            console.warn("Unknown data key received:", result.key);
+        }
+      });
+    })
+    .catch(error => {
+      console.error("Error fetching Traefik v2 data:", error);
+      dispatch(receiveTraefikDataError(error.message || 'Failed to fetch Traefik v2 data'));
+      dispatch(receiveConfig({
+        configReady: false,
+        error: error.message || 'Failed to fetch Traefik v2 data'
+      }));
+    });
+}
+</file>
+
+<file path="src/components/ThreeJSFlow.js">
+import React, { Component } from 'react';
+import _ from 'lodash';
+import Tree from './Tree';
+// Import only selectAll and select from d3-selection instead of the whole d3 library
+import { selectAll, select } from 'd3-selection';
+
+
+export default class ThreeJSFlow extends Component {
+
+  loadData(props) {
+    // Access v2 data and search query from props.data (passed from AsyncApp)
+    const { 
+      routers: originalRouters, 
+      services: originalServices, 
+      overview: originalOverview,
+      entrypoints: originalEntrypoints,
+      middlewares: originalMiddlewares,
+      tlsCertificates: originalTlsCertificates,
+      search_query 
+    } = props.data;
+
+    // Clear SVG and check if data is available
+    // Use the imported selectAll directly
+    selectAll('#d3-flow-svg *').remove();
+    if (!originalRouters || !originalServices) { // Keep this check for now, expand later
+      console.warn("Core routers or services data not available for visualization.");
+      return;
+    }
+
+    // --- Apply Filtering based on search_query ---
+    let routers = originalRouters || {};
+    let services = originalServices || {};
+    let overview = originalOverview || {}; // Initialize even if null/undefined
+    let entrypoints = originalEntrypoints || {};
+    let middlewares = originalMiddlewares || {};
+    let tlsCertificates = originalTlsCertificates || []; // Assuming array for certs
+    const query = search_query ? search_query.toLowerCase() : '';
+    let matchedServiceKeys = new Set();
+    let someDataMatched = false; // Flag to check if any data type matched
+
+    if (query) {
+        console.log("Applying filter:", query);
+
+        // Filter Services
+        const filteredServices = {};
+        if (originalServices) {
+            Object.values(originalServices).forEach(service => {
+                const serviceKey = `${service.name}@${service.provider}`;
+                let match = false;
+                if (service.name && service.name.toLowerCase().includes(query)) match = true;
+                if (!match && service.provider && service.provider.toLowerCase().includes(query)) match = true;
+                if (!match && service.type === 'loadbalancer' && service.loadBalancer && service.loadBalancer.servers) {
+                    if (service.loadBalancer.servers.some(server => server.address && server.address.toLowerCase().includes(query))) {
+                        match = true;
+                    }
+                }
+                if (!match && service.serverStatus) {
+                    if (Object.values(service.serverStatus).some(status => status && status.toLowerCase().includes(query))) {
+                        match = true;
+                    }
+                }
+                if (match) {
+                    filteredServices[serviceKey] = service;
+                    matchedServiceKeys.add(serviceKey);
+                    someDataMatched = true;
+                }
+            });
+        }
+        services = filteredServices;
+
+        // Filter Routers
+        const filteredRouters = {};
+        if (originalRouters) {
+            Object.values(originalRouters).forEach(router => {
+                const routerKey = `${router.name}@${router.provider}`;
+                const serviceKey = router.service ? `${router.service}@${router.provider}` : null;
+                let match = false;
+                if (router.name && router.name.toLowerCase().includes(query)) match = true;
+                if (!match && router.provider && router.provider.toLowerCase().includes(query)) match = true;
+                if (!match && router.rule && router.rule.toLowerCase().includes(query)) match = true;
+                if (!match && router.entryPoints && router.entryPoints.some(ep => ep && ep.toLowerCase().includes(query))) match = true;
+                if (!match && serviceKey && matchedServiceKeys.has(serviceKey)) match = true;
+                if (!match && serviceKey && services[serviceKey]) match = true; // Check against already filtered services
+
+                if (match) {
+                    filteredRouters[routerKey] = router;
+                    if (serviceKey && originalServices && originalServices[serviceKey] && !services[serviceKey]) {
+                        services[serviceKey] = originalServices[serviceKey]; // Add back if router matched
+                        matchedServiceKeys.add(serviceKey);
+                    } else if (serviceKey) {
+                        matchedServiceKeys.add(serviceKey);
+                    }
+                    someDataMatched = true;
+                }
+            });
+        }
+        routers = filteredRouters;
+        
+        // Ensure services linked by the final list of filtered routers are included
+        if (originalServices) {
+            Object.values(routers).forEach(router => {
+                const serviceKey = router.service ? `${router.service}@${router.provider}` : null;
+                if (serviceKey && originalServices[serviceKey] && !services[serviceKey]) {
+                    services[serviceKey] = originalServices[serviceKey];
+                }
+            });
+        }
+
+        // Filter Entrypoints (Example: by name or address)
+        const filteredEntrypoints = {};
+        if(originalEntrypoints){
+            Object.entries(originalEntrypoints).forEach(([key, ep]) => {
+                let match = false;
+                if (key.toLowerCase().includes(query)) match = true;
+                if (!match && ep.address && ep.address.toLowerCase().includes(query)) match = true;
+                if (match) {
+                    filteredEntrypoints[key] = ep;
+                    someDataMatched = true;
+                }
+            });
+        }
+        entrypoints = filteredEntrypoints;
+
+        // Filter Middlewares (Example: by name or type)
+        const filteredMiddlewares = {};
+        if(originalMiddlewares){
+            Object.entries(originalMiddlewares).forEach(([key, mw]) => {
+                const mwName = key.substring(0, key.lastIndexOf('@')); // Extract name before @provider
+                const mwProvider = key.substring(key.lastIndexOf('@') + 1);
+                let match = false;
+                if (mwName.toLowerCase().includes(query)) match = true;
+                if (!match && mwProvider.toLowerCase().includes(query)) match = true;
+                // Add more specific middleware type checks if needed, e.g., mw.stripPrefix, mw.addHeaders
+                if (match) {
+                    filteredMiddlewares[key] = mw;
+                    someDataMatched = true;
+                }
+            });
+        }
+        middlewares = filteredMiddlewares;
+        
+        // Filter TLS Certificates (Example: by SANs)
+        const filteredTlsCertificates = [];
+        if(originalTlsCertificates) {
+            originalTlsCertificates.forEach(cert => {
+                let match = false;
+                if (cert.sans && cert.sans.some(san => san.toLowerCase().includes(query))) match = true;
+                if (match) {
+                    filteredTlsCertificates.push(cert);
+                    someDataMatched = true;
+                }
+            });
+        }
+        tlsCertificates = filteredTlsCertificates;
+        
+        // Overview data is usually small, decide if/how to filter or always show
+        // For now, overview is not explicitly filtered but will be passed through.
+        // If query is active and nothing matched, then we show "No results"
+        if (query && !someDataMatched) {
+             console.log("Filtering resulted in no matching data across all types.");
+             select("#d3-flow-svg").append("text")
+                .attr("x", 450).attr("y", 50).attr("text-anchor", "middle")
+                .text(`No results found for "${query}"`);
+            return;
+        }
+
+
+    } else {
+        // No query, use original data (already assigned above)
+    }
+
+    // Check again if core data for visualization is empty after potential filtering
+    if (Object.keys(routers).length === 0 && Object.keys(services).length === 0 && !query) { // Only show this if no query and still no data
+        console.log("No routers or services data to display (even without filter).");
+        // Optionally display a message on the SVG
+        // Use the imported select directly
+        select("#d3-flow-svg").append("text")
+            .attr("x", 450) // Center horizontally (approx)
+            .attr("y", 50)
+            .attr("text-anchor", "middle")
+            .text(`No results found for "${query}"`);
+        return;
+    }
+
+    // --- Prepare v2 Data Structures ---
+    // Display Overview Info (simple text for now)
+    if (overview && Object.keys(overview).length > 0) {
+        let overviewHtml = `<strong>Traefik Overview:</strong><ul>`;
+        if(overview.version) overviewHtml += `<li>Version: ${overview.version}</li>`;
+        if(overview.message) overviewHtml += `<li>Message: ${overview.message}</li>`;
+        // Add more details from overview if needed, e.g., features
+        overviewHtml += `</ul>`;
+        select("#d3-flow-svg").append("foreignObject")
+            .attr("width", 300)
+            .attr("height", 100)
+            .attr("x", 10)
+            .attr("y", 10)
+            .append("xhtml:div")
+            .style("font-size", "12px")
+            .style("border", "1px solid #ccc")
+            .style("padding", "5px")
+            .html(overviewHtml);
+    }
+    
+    var traefikSideData = {
+      name: "Traefik Instance", 
+      hasDetails: true,
+      details: overview && overview.version ? `Version: ${overview.version}` : "Traefik Core",
+      children: [],
+      image: { src: 'images/traefik.png', width: 100, height: 100 },
+      className: 'traefik-root'
+    };
+
+    var internetSideData = {
+      name: "Internet / Entrypoints",
+      hasDetails: false,
+      children: [], // Entrypoints will be children here
+      image: { src: 'images/cloud.png', width: 100, height: 100 },
+      className: 'internet-root'
+    };
+    
+    // Process Entrypoints and add them as children to internetSideData
+    if (entrypoints && Object.keys(entrypoints).length > 0) {
+        Object.entries(entrypoints).forEach(([epName, epData]) => {
+            const entrypointNode = {
+                name: epName,
+                hasDetails: true,
+                details: `Address: ${epData.address}<br/>Transport: ${epData.transport && epData.transport.protocol || 'TCP'}`,
+                children: [], 
+                className: 'entrypoint-node' 
+            };
+            internetSideData.children.push(entrypointNode);
+        });
+    }
+
+    // Process Middlewares and add them as a group to traefikSideData
+    if (middlewares && Object.keys(middlewares).length > 0) {
+        const middlewaresGroupNode = {
+            name: "Middlewares",
+            hasDetails: false,
+            children: [],
+            className: 'middlewares-group-node'
+            // No specific image for the group, individual middlewares might have icons based on type later
+        };
+        Object.entries(middlewares).forEach(([mwKey, mwData]) => {
+            const mwName = mwKey.substring(0, mwKey.lastIndexOf('@'));
+            const mwProvider = mwKey.substring(mwKey.lastIndexOf('@') + 1);
+            let detailsHtml = `<div>Provider: ${mwProvider}</div><div>Type: ${mwData.type}</div>`;
+            // Add specific details based on middleware type
+            if (mwData.stripPrefix && mwData.stripPrefix.prefixes) {
+                detailsHtml += `<div>Strip Prefixes: ${mwData.stripPrefix.prefixes.join(', ')}</div>`;
+            }
+            if (mwData.headers && (mwData.headers.customRequestHeaders || mwData.headers.customResponseHeaders)) {
+                detailsHtml += `<div>Headers Modified</div>`; // Simplified for now
+            }
+            // Add more types as needed
+
+            const middlewareNode = {
+                name: mwName,
+                hasDetails: true,
+                details: detailsHtml,
+                className: `middleware-node type-${mwData.type}`
+            };
+            middlewaresGroupNode.children.push(middlewareNode);
+        });
+        if (middlewaresGroupNode.children.length > 0) {
+            traefikSideData.children.push(middlewaresGroupNode);
+        }
+    }
+    
+    // Process TLS Certificates and add them as a group to traefikSideData
+    if (tlsCertificates && tlsCertificates.length > 0) {
+        const tlsGroupNode = {
+            name: "TLS Certificates",
+            hasDetails: false,
+            children: [],
+            className: 'tls-certificates-group-node'
+        };
+        tlsCertificates.forEach(cert => {
+            // Assuming the certificate object has a 'main' or 'CN' and 'sans'
+            // Adjust based on actual Traefik API v2 structure for TLS certs
+            let certName = "Unknown Certificate";
+            let certDetails = "<ul>";
+            if (cert.main) { // Example property, adjust if needed
+                certName = cert.main;
+                certDetails += `<li>Main: ${cert.main}</li>`;
+            } else if (cert.domains && cert.domains.main) { // Another common structure
+                 certName = cert.domains.main;
+                 certDetails += `<li>Main Domain: ${cert.domains.main}</li>`;
+            }
+            
+            if (cert.sans && cert.sans.length > 0) { // Example property
+                certDetails += `<li>SANs: ${cert.sans.join(', ')}</li>`;
+            } else if (cert.domains && cert.domains.sans && cert.domains.sans.length > 0) {
+                 certDetails += `<li>SANs: ${cert.domains.sans.join(', ')}</li>`;
+            }
+            // Add more details like issuer, expiry if available and desired
+            certDetails += "</ul>";
+
+            const tlsNode = {
+                name: certName,
+                hasDetails: true,
+                details: certDetails,
+                className: 'tls-certificate-node'
+            };
+            tlsGroupNode.children.push(tlsNode);
+        });
+        if (tlsGroupNode.children.length > 0) {
+            traefikSideData.children.push(tlsGroupNode);
+        }
+    }
+
+    var serviceMap = {}; // To store processed service data for linking
+
+    // --- 1. Process Services (Backends) ---
+    Object.values(services).forEach(service => {
+      // Basic check for load balancer and servers
+      // Also check service type, maybe only handle LoadBalancer type?
+      if (service.type !== 'loadbalancer' || !service.loadBalancer || !service.loadBalancer.servers) return;
+
+      var serverNodes = service.loadBalancer.servers.map(server => {
+        // Determine server status
+        let status = 'Unknown';
+        if (service.serverStatus && service.serverStatus[server.address]) {
+            status = service.serverStatus[server.address];
+        }
+        // Use address as name, v2 doesn't have explicit server names like v1
+        let serverName = server.address;
+        return {
+          name: serverName,
+          hasDetails: true,
+          // Include status in details
+          details: `<ul><li>URL: ${server.address}</li><li>Status: ${status}</li></ul>`,
+          depth: 150, // Keep original layout params for now
+          width: 200,
+          className: `traefik-server status-${status.toLowerCase()}` // Add status class
+        };
+      });
+
+      // Use name@provider as unique key
+      const serviceKey = `${service.name}@${service.provider}`;
+      serviceMap[serviceKey] = {
+        key: serviceKey, // Store the key itself
+        name: service.name,
+        provider: service.provider,
+        children: serverNodes, // Server nodes are children of the service
+        // Add other relevant service details if needed for display
+        details: `<div>Provider: ${service.provider}</div><div>Type: ${service.type}</div>`
+      };
+    });
+
+    // --- 2. Process Routers (Frontends) and Link to Services ---
+    Object.values(routers).forEach(router => {
+      // Routers might not have a service (e.g., redirect middleware)
+      if (!router.service) return;
+
+      const serviceKey = `${router.service}@${router.provider}`;
+      const linkedServiceData = serviceMap[serviceKey];
+
+      // Build internet-side node (representing the route/rule)
+      // Routers are now children of their respective entrypoints if that model is chosen,
+      // or they can remain direct children of a general "internet" node if entrypoints are separate.
+      // For now, let's keep routers as direct children of a general "routes" group under internetSideData,
+      // and entrypoints are separate children of internetSideData.
+      // We can refine the hierarchy later.
+
+      // Create a "Routes" parent node if it doesn't exist under internetSideData
+      let routesParentNode = internetSideData.children.find(c => c.name === "Configured Routes");
+      if (!routesParentNode) {
+          routesParentNode = {
+              name: "Configured Routes",
+              hasDetails: false,
+              children: [],
+              className: 'routes-group'
+          };
+          internetSideData.children.push(routesParentNode);
+      }
+      
+      let ruleLink = '#';
+      try {
+          if (router.rule && router.rule.startsWith('Host(`')) {
+              const hostMatch = router.rule.match(/Host\(`([^`]+)`\)/);
+              if (hostMatch && hostMatch[1]) {
+                  const host = hostMatch[1];
+                  const scheme = router.entryPoints && router.entryPoints.some(ep => ep.toLowerCase().includes('https')) ? 'https://' : 'http://';
+                  ruleLink = scheme + host;
+              }
+          } else if (router.rule && router.rule.includes('PathPrefix(`')) {
+               const hostMatch = router.rule.match(/Host\(`([^`]+)`\)/);
+               const pathMatch = router.rule.match(/PathPrefix\(`([^`]+)`\)/);
+               if (hostMatch && hostMatch[1] && pathMatch && pathMatch[1]) {
+                   const host = hostMatch[1];
+                   const path = pathMatch[1];
+                   const scheme = router.entryPoints && router.entryPoints.some(ep => ep.toLowerCase().includes('https')) ? 'https://' : 'http://';
+                   ruleLink = scheme + host + path;
+               }
+          }
+      } catch (e) { console.warn("Could not parse rule for link:", router.rule); }
+
+      const routeNode = {
+        name: router.name,
+        entryPoints: router.entryPoints ? router.entryPoints.join(", ") : "N/A",
+        backend: serviceKey,
+        hasDetails: true,
+        details: `<div>Rule: ${router.rule}</div>
+                  <div>EntryPoints: ${router.entryPoints ? router.entryPoints.join(", ") : "N/A"}</div>
+                  <div>Provider: ${router.provider}</div>
+                  ${router.middlewares ? `<div>Middlewares: ${router.middlewares.join(", ")}</div>` : ''}
+                  ${linkedServiceData ? `<div>Service: ${linkedServiceData.name} (${linkedServiceData.provider})</div>` : `<div>Service: ${router.service}@${router.provider} (Not Found/Visualized)</div>`}
+                  ${ruleLink !== '#' ? `<div><a class="backend-link" target="_blank" href="${ruleLink}">Link (best guess)</a></div>` : ''}`,
+        className: 'internet-route'
+      };
+      routesParentNode.children.push(routeNode); // Add router to "Configured Routes"
+
+      // Add service node to the traefik side if it's linked and not already added
+      if (linkedServiceData) {
+           let serviceGroupNode = traefikSideData.children.find(n => n.key === serviceKey);
+           if (!serviceGroupNode) {
+               // Determine image based on provider (simple example)
+               let providerImage = 'images/docker.png'; // Default
+               // Use includes for broader matching (e.g., docker@docker, kubernetescrd@kubernetescrd)
+               if (linkedServiceData.provider.toLowerCase().includes('file')) providerImage = 'images/file.png';
+               else if (linkedServiceData.provider.toLowerCase().includes('kubernetes')) providerImage = 'images/cloud.png'; // Example for k8s
+               // Add more provider checks if needed
+
+               serviceGroupNode = {
+                   key: serviceKey,
+                   name: linkedServiceData.name, // Service name
+                   provider: linkedServiceData.provider,
+                   children: linkedServiceData.children, // Add server nodes
+                   image: { src: providerImage, width: 100, height: 100 }, // Use determined image
+                   details: linkedServiceData.details, // Add service details
+                   className: `traefik-service provider-${linkedServiceData.provider}` // Add classes
+               };
+               traefikSideData.children.push(serviceGroupNode);
+           }
+           // Optionally, add router info to service details if needed
+           // serviceGroupNode.details += `<div>Linked Router: ${router.name}</div>`;
+      } else {
+          console.warn(`Router "${router.name}@${router.provider}" points to unknown or non-loadbalancer service "${serviceKey}"`);
+          // Optionally create a placeholder node on the traefik side for the missing/non-LB service
+      }
+    });
+
+    // --- 3. Adjust layout parameters based on data size ---
+    // Calculate leaves based on server nodes
+    const traefikLeaves = traefikSideData.children.reduce((sum, service) => sum + (service.children ? service.children.length : 0), 0);
+    const internetLeaves = internetSideData.children.length; // Leaves are the route nodes
+
+    // --- 4. Render Trees ---
+    var tree = new Tree();
+    // Only render if there are children to avoid errors
+    if (traefikSideData.children.length > 0) {
+        // Use Math.max to ensure a minimum width, prevent collapse if few leaves
+        tree.createTree("#d3-flow-svg", traefikSideData, "left-to-right", Math.max(traefikLeaves * 150, 300));
+    }
+    if (internetSideData.children.length > 0) {
+         // Use Math.max to ensure a minimum width
+        tree.createTree("#d3-flow-svg", internetSideData, "right-to-left", Math.max(internetLeaves * 170, 300));
+    }
+  }
+
+  componentDidMount() {
+    // Initial load uses data passed in props
+    this.loadData(this.props);
+  }
+
+  componentDidUpdate(prevProps) {
+    // Check if relevant v2 data has changed using lodash for deep comparison
+    const currentData = this.props.data || {};
+    const previousData = prevProps.data || {};
+
+    if (_.isEqual(previousData.routers, currentData.routers) &&
+        _.isEqual(previousData.services, currentData.services) &&
+        _.isEqual(previousData.overview, currentData.overview) &&
+        _.isEqual(previousData.entrypoints, currentData.entrypoints) &&
+        _.isEqual(previousData.middlewares, currentData.middlewares) &&
+        _.isEqual(previousData.tlsCertificates, currentData.tlsCertificates) &&
+        previousData.search_query === currentData.search_query // also check search query
+        ) {
+      return; // No change in relevant data, do nothing
+    }
+    // Reload data if any relevant part changed
+    this.loadData(this.props);
+  }
+
+  render() {
+    return (
+      <div id="d3-flow">
+        <svg id="d3-flow-svg"></svg>
+      </div>
+    );
+  }
+}
+</file>
+
+<file path="src/reducers/index.js">
+import { combineReducers } from 'redux';
+import * as _ from 'lodash';
+import {
+  REQUEST_TRAEFIK_DATA,
+  RECEIVE_TRAEFIK_ROUTERS,
+  RECEIVE_TRAEFIK_SERVICES,
+  RECEIVE_TRAEFIK_OVERVIEW,
+  RECEIVE_TRAEFIK_ENTRYPOINTS,
+  RECEIVE_TRAEFIK_MIDDLEWARES,
+  RECEIVE_TRAEFIK_TLS_CERTIFICATES,
+  RECEIVE_TRAEFIK_DATA_ERROR,
+  REQUEST_CONFIG, RECEIVE_CONFIG, SET_URL, SEARCH, INVALIDATE_DATA
+} from '../actions';
+
+// Initial state reflecting v2 structure
+const initialDataState = {
+  isFetching: false,
+  didInvalidate: false,
+  configReady: false,
+  traefik_url: null,
+  routers: null,
+  services: null,
+  overview: null,
+  entrypoints: null,
+  middlewares: null,
+  tlsCertificates: null,
+  search_query: '',
+  error: null,
+  lastUpdated: null
+};
+
+function data(state = initialDataState, action) {
+  // var newProviders; // No longer needed
+  switch (action.type) {
+    // case REQUEST_TRAEFIK_PROVIDERS: // Deprecated v1
+    //   return Object.assign({}, state, {
+    //     isFetching: true,
+    //     didInvalidate: false
+    //   })
+    case REQUEST_TRAEFIK_DATA: // Renamed for v2
+      return Object.assign({}, state, {
+        isFetching: true, // Indicate fetching has started
+        didInvalidate: false,
+        error: null // Clear previous errors
+      });
+    // case RECEIVE_TRAEFIK_PROVIDERS: // Deprecated v1
+    //   newProviders = filterProviders(action.data, state.search_query || '');
+    //   return Object.assign({}, state, {
+    //     isFetching: false,
+    //     didInvalidate: false,
+    //     providers: newProviders,
+    //     error: false,
+    //     fetchedProviders: action.data,
+    //     lastUpdatedProviders: action.receivedAt
+    //   })
+    case RECEIVE_TRAEFIK_ROUTERS:
+      return Object.assign({}, state, {
+        didInvalidate: false,
+        routers: action.routers,
+        error: null,
+        lastUpdated: action.receivedAt // Routers action sets the primary timestamp
+      });
+    case RECEIVE_TRAEFIK_SERVICES:
+      return Object.assign({}, state, {
+        // isFetching will be set to false when all data is processed or on error
+        didInvalidate: false,
+        services: action.services,
+        error: null
+      });
+    case RECEIVE_TRAEFIK_OVERVIEW:
+      return Object.assign({}, state, {
+        didInvalidate: false,
+        overview: action.overview,
+        error: null
+      });
+    case RECEIVE_TRAEFIK_ENTRYPOINTS:
+      return Object.assign({}, state, {
+        didInvalidate: false,
+        entrypoints: action.entrypoints,
+        error: null
+      });
+    case RECEIVE_TRAEFIK_MIDDLEWARES:
+      return Object.assign({}, state, {
+        didInvalidate: false,
+        middlewares: action.middlewares,
+        error: null
+      });
+    case RECEIVE_TRAEFIK_TLS_CERTIFICATES:
+      return Object.assign({}, state, {
+        isFetching: false, // Assume this is the last piece of data in the Promise.all
+        didInvalidate: false,
+        tlsCertificates: action.tlsCertificates,
+        error: null
+      });
+    case RECEIVE_TRAEFIK_DATA_ERROR:
+        // When any part of the data fetch fails, set isFetching to false
+        return Object.assign({}, state, {
+            isFetching: false,
+            didInvalidate: true,
+            error: action.error,
+            lastUpdated: action.receivedAt // Update timestamp even on error
+        });
+    case REQUEST_CONFIG:
+      return Object.assign({}, state, {
+        isFetching: true, // Indicate fetching config
+        didInvalidate: false,
+        error: null // Clear previous errors
+      });
+    case RECEIVE_CONFIG:
+      // Keep existing data like routers/services when config updates, unless error occurs
+      return Object.assign({}, state, {
+        isFetching: false, // Config fetching done
+        configReady: action.data.configReady,
+        error: action.data.error || state.error, // Keep existing data error if config success but data failed previously
+        traefik_url: action.data.traefik_url || state.traefik_url // Keep existing URL if new one not provided
+        // Don't reset routers/services here unless specifically intended
+      });
+    case SET_URL:
+      return Object.assign({}, state, {
+        traefik_url: action.data,
+        // Reset data when URL changes, as new data will be fetched.
+        routers: null,
+        services: null,
+        overview: null,
+        entrypoints: null,
+        middlewares: null,
+        tlsCertificates: null,
+        error: null,
+        didInvalidate: true, // Mark data as invalid due to URL change
+        configReady: true // Assume ready once URL is set manually
+      });
+    case SEARCH:
+      // Filtering logic will be handled by components/selectors based on the search_query
+      return Object.assign({}, state, {
+        search_query: action.data
+      });
+    case INVALIDATE_DATA:
+       return Object.assign({}, state, {
+           didInvalidate: true,
+           // Optionally clear all data fields as well if desired upon manual invalidation
+           // routers: null, services: null, overview: null, etc.
+           error: null // Optionally clear error when manually invalidating
+       });
+    default:
+      return state;
+  }
+}
+
+// TODO: Re-implement filtering based on v2 data structure (routers, services)
+/*
+function filterProviders(oldProviders, query){
+    // ... (v1 filtering logic - needs complete rewrite for v2) ...
+    // This function is now obsolete and needs replacement.
+    // For now, it's commented out. The SEARCH action above only stores the query.
+    // Filtering logic should be applied either here (if complex) or in selectors/components.
+    return oldProviders; // Temporary: return unfiltered data
+}
+*/
+
+// Combine all data-related state updates into a single reducer
+const traefikData = data; // Renamed function 'data' handles all relevant actions
+
+const rootReducer = combineReducers({
+  traefikData // Use the single reducer managing the data slice
+});
+
+export default rootReducer;
+</file>
+
+<file path="src/containers/AsyncApp.js">
+import React, { Component } from 'react';
+import PropTypes from 'prop-types';
+import { connect } from 'react-redux';
+// Updated action import
+import { fetchTraefikData, fetchConfigReady, setUrl, search, invalidateData } from '../actions';
+import UrlInput from '../components/UrlInput';
+import Search from '../components/Search';
+import ThreeJSFlow from '../components/ThreeJSFlow'
+
+class AsyncApp extends Component {
+  timer = null
+
+  constructor(props) {
+    super(props)
+    this.handleChange = this.handleChange.bind(this)
+    this.handleSearchChange = this.handleSearchChange.bind(this)
+  }
+
+  // Updated function name to reflect v2
+  loadData(dispatch, traefik_url) {
+    // Call the updated action
+    dispatch(fetchTraefikData(traefik_url));
+  }
+
+  componentDidMount() {
+    const { dispatch } = this.props
+    dispatch(fetchConfigReady())
+  }
+
+  componentDidUpdate(prevProps) {
+    const { dispatch, traefikData } = this.props;
+
+    // Guard against initial render when traefikData might be undefined
+    if (!traefikData) {
+      return;
+    }
+
+    // Use traditional checks instead of optional chaining for Node v7 compatibility
+    const prevTraefikData = prevProps.traefikData; // Get previous data object
+    const prevTraefikUrl = prevTraefikData && prevTraefikData.traefik_url; // Check if prevTraefikData exists
+    const prevConfigReady = prevTraefikData && prevTraefikData.configReady; // Check if prevTraefikData exists
+
+    const urlChanged = traefikData.traefik_url !== prevTraefikUrl;
+    const configJustBecameReady = traefikData.configReady && !prevConfigReady;
+    const shouldLoadInitialData = traefikData.configReady && (!traefikData.routers || traefikData.didInvalidate); // Load if ready and no routers yet or invalidated
+
+    // If URL changed or config just became ready, and we should load initial data
+    if ((urlChanged || configJustBecameReady) && shouldLoadInitialData) {
+        console.log("URL changed or config ready, loading initial data...");
+        this.loadData(dispatch, traefikData.traefik_url);
+        // Clear existing timer if URL changed
+        if (this.timer) {
+            window.clearInterval(this.timer);
+            delete this.timer;
+        }
+        // Set up polling timer only if config is ready
+        if (traefikData.configReady) {
+             this.timer = window.setInterval(() => {
+                 console.log("Polling for data...");
+                 this.loadData(dispatch, traefikData.traefik_url);
+             }, 15000); // Poll every 15 seconds
+        }
+    }
+
+    // Clear timer if config becomes not ready (e.g., due to error)
+    if (!traefikData.configReady && this.timer) {
+        console.log("Config not ready, clearing timer.");
+        window.clearInterval(this.timer);
+        delete this.timer;
+    }
+  }
+
+  handleChange(next_traefik_url) {
+    const { dispatch } = this.props
+    dispatch(setUrl(next_traefik_url))
+  }
+
+  handleSearchChange(query) {
+    const { dispatch } = this.props
+    dispatch(search(query))
+  }
+
+  // Clear timer on unmount
+  componentWillUnmount() {
+      if (this.timer) {
+          window.clearInterval(this.timer);
+      }
+  }
+
+
+  handleChange(next_traefik_url) {
+    const { dispatch } = this.props;
+    // Setting URL now also invalidates data in the reducer
+    dispatch(setUrl(next_traefik_url));
+  }
+
+  handleSearchChange(query) {
+    const { dispatch } = this.props;
+    dispatch(search(query));
+    // Note: Actual filtering logic is commented out in reducer for now
+  }
+
+  render() {
+    // Get data from the mapped traefikData prop
+    const { traefikData } = this.props;
+    // Destructure needed properties from traefikData, providing defaults
+    const {
+        traefik_url = null,
+        isFetching = false,
+        lastUpdated = null, // Use new property name
+        routers = null,
+        services = null, // Use new property name
+        error = null,
+        configReady = false,
+        search_query = '' // Needed for Search component value
+    } = traefikData || {}; // Handle case where traefikData might be null initially
+
+    const hasData = routers && services; // Condition based on v2 data
+
+    return (
+    <div>
+      <nav className="navbar navbar-toggleable-md navbar-inverse bg-inverse">
+        <button className="navbar-toggler navbar-toggler-right" type="button" data-toggle="collapse" data-target="#navbarsExampleDefault" aria-controls="navbarsExampleDefault" aria-expanded="false" aria-label="Toggle navigation">
+          <span className="navbar-toggler-icon"></span>
+        </button>
+        <a className="navbar-brand" href="/">Traefik - diagram</a>
+
+        <div className="collapse navbar-collapse" id="navbarSupportedContent">
+          <ul className="navbar-nav mr-auto">
+            <li className="nav-item active">
+              <a className="nav-link" href="https://github.com/guillaumejacquart/react-traefik">Doc</a>
+            </li>
+          </ul>
+          
+          {/* Pass traefik_url directly */}
+          <UrlInput value={traefik_url} onClick={this.handleChange} />
+        </div>
+      </nav>
+      <div className="container">
+        {/* Render Search if data is available */}
+        {hasData &&
+        <Search value={search_query} onChange={this.handleSearchChange} />
+        }
+        <p>
+          {/* Use lastUpdated */}
+          {lastUpdated &&
+            <span>
+              Last updated at {new Date(lastUpdated).toLocaleTimeString()}.
+              {' '}
+            </span>
+          }
+        </p>
+        {/* Show loading only if fetching and no data yet */}
+        {isFetching && !hasData &&
+          <h2>Loading...</h2>
+        }
+        {/* Show prompt if config not ready and not fetching */}
+        {!configReady && !isFetching && !traefik_url &&
+          <h3 className="text-center">Fill out your Traefik API URL in the navigation header</h3>
+        }
+         {/* Show error message if an error exists */}
+        {error &&
+          <h3 className="text-center text-danger">Error: {typeof error === 'string' ? error : JSON.stringify(error)}</h3>
+        }
+      </div>
+      <div>
+         {/* Render visualization if data is available */}
+        {hasData &&
+          // Pass the whole traefikData object, ThreeJSFlow needs updating too
+          <ThreeJSFlow data={traefikData} />
+        }
+      </div>
+    </div>
+    )
+  }
+}
+
+AsyncApp.propTypes = {
+  // traefikData contains all the state now
+  traefikData: PropTypes.shape({
+      isFetching: PropTypes.bool.isRequired,
+      lastUpdated: PropTypes.number, // Use new name
+      configReady: PropTypes.bool,
+      traefik_url: PropTypes.string,
+      routers: PropTypes.any, // Adjust type as needed
+      services: PropTypes.any, // Adjust type as needed
+      error: PropTypes.any,
+      didInvalidate: PropTypes.bool,
+      search_query: PropTypes.string
+  }),
+  dispatch: PropTypes.func.isRequired
+};
+
+function mapStateToProps(state) {
+  // Map the entire traefikData slice to the traefikData prop
+  const { traefikData } = state;
+
+  // No need to map individual properties if passing the whole slice
+  return {
+    traefikData
+  };
+}
+
+export default connect(mapStateToProps)(AsyncApp);
+</file>
+
+<file path="api/routes/api.js">
+var express = require('express');
+var router = express.Router();
+var request = require('request');
+var config = require('config');
+var Datastore = require('nedb')
+    , db = new Datastore({ filename: config.db_path, autoload: true });
+
+/* GET saved url listing. */
+router.get('/url', function (req, res, next) {
+    // The same rules apply when you want to only find one document
+    db.findOne({ name: 'url' }, function (err, doc) {
+        if (err) {
+            return res.status(500).json(err);
+        }
+
+        if (!doc) {
+            var Docker = require('dockerode');
+            var docker = new Docker({ socketPath: '/var/run/docker.sock' });
+            docker.listContainers(function (err, containers) {
+                if (err || !containers) {
+                    return res.status(404).json({
+                        message: 'traefik url not provided'
+                    });
+                } else {
+                    var traefik = containers.filter((c) => {
+                        return c.Image == 'traefik' && c.State == 'running';
+                    })
+                    var ip;
+                    if (traefik.length) {
+                        var network = traefik[0].HostConfig.NetworkMode;
+                        if (network) {
+                            ip = traefik[0].NetworkSettings.Networks[network].IPAddress;
+                        }
+                    }
+                }
+
+                if (ip) {
+                    return res.json({
+                        status: 'ok',
+                        url: 'http://' + ip + ':8080'
+                    })
+                }
+                return res.status(404).json({
+                    message: 'traefik url not provided'
+                });
+            });
+        } else {
+
+            return res.json({
+                status: 'ok',
+                url: doc.value
+            })
+        }
+    });
+});
+
+/* GET users listing. */
+router.put('/url', function (req, res, next) {
+    var url = req.body.url;
+    if (!url) {
+        return res.status(400).json({
+            message: 'Incorrect url'
+        })
+    }
+
+    db.update({ name: 'url' }, { name: 'url', value: url }, { upsert: true }, function (err, num, newDoc) {
+        if (err) {
+            return res.status(500).json(err);
+        }
+        return res.json({
+            status: 'ok',
+            url: url
+        })
+    });
+});
+
+/* GET providers info from traefik. (V1 - Deprecated) */
+/*
+router.get('/providers', function (req, res, next) {
+    db.findOne({ name: 'url' }, function (err, doc) {
+        if (err) {
+            return res.status(500).json(err);
+        }
+
+        if (!doc) {
+            return res.status(404).json({
+                message: 'traefik url not provided'
+            });
+        }
+
+        var x = request(doc.value + '/api/providers', function (err, response) {
+            if (err) {
+                // Log the error but attempt to let the pipe handle Traefik's response if possible
+                console.error("Error requesting Traefik v1 providers:", err);
+            }
+        });
+        // Handle request errors specifically for the proxy request
+        x.on('error', function(proxyErr) {
+            console.error("Traefik v1 providers proxy request error:", proxyErr);
+            if (!res.headersSent) {
+                res.status(502).json({ message: 'Bad Gateway - Error connecting to Traefik API', error: proxyErr.message });
+            }
+        });
+        req.pipe(x).pipe(res); // Pipe request to Traefik, and Traefik's response back to client
+    });
+});
+*/
+
+/* GET v2 http routers info from traefik. */
+router.get('/v2/http/routers', function (req, res, next) {
+    db.findOne({ name: 'url' }, function (err, doc) {
+        if (err) {
+            console.error("Error fetching URL from DB:", err);
+            return res.status(500).json({ message: 'Database error fetching Traefik URL', error: err });
+        }
+
+        if (!doc || !doc.value) {
+            return res.status(404).json({
+                message: 'Traefik URL not configured or found in DB'
+            });
+        }
+
+        const targetUrl = doc.value.replace(/\/$/, '') + '/api/http/routers'; // Ensure no trailing slash before appending
+        console.log(`Proxying request to Traefik v2 routers: ${targetUrl}`);
+
+        try {
+            var x = request(targetUrl);
+             // Handle request errors specifically for the proxy request
+            x.on('error', function(proxyErr) {
+                console.error(`Traefik v2 routers proxy request error to ${targetUrl}:`, proxyErr);
+                if (!res.headersSent) {
+                    res.status(502).json({ message: 'Bad Gateway - Error connecting to Traefik API (v2/http/routers)', error: proxyErr.message });
+                }
+            });
+            req.pipe(x).pipe(res); // Pipe request to Traefik, and Traefik's response back to client
+        } catch (requestErr) {
+             console.error(`Error initiating request to ${targetUrl}:`, requestErr);
+             if (!res.headersSent) {
+                res.status(500).json({ message: 'Failed to initiate proxy request to Traefik API', error: requestErr.message });
+            }
+        }
+    });
+});
+
+/* GET v2 http services info from traefik. */
+router.get('/v2/http/services', function (req, res, next) {
+    db.findOne({ name: 'url' }, function (err, doc) {
+        if (err) {
+            console.error("Error fetching URL from DB:", err);
+            return res.status(500).json({ message: 'Database error fetching Traefik URL', error: err });
+        }
+
+        if (!doc || !doc.value) {
+            return res.status(404).json({
+                message: 'Traefik URL not configured or found in DB'
+            });
+        }
+
+        const targetUrl = doc.value.replace(/\/$/, '') + '/api/http/services'; // Ensure no trailing slash before appending
+        console.log(`Proxying request to Traefik v2 services: ${targetUrl}`);
+
+        try {
+            var x = request(targetUrl);
+             // Handle request errors specifically for the proxy request
+            x.on('error', function(proxyErr) {
+                console.error(`Traefik v2 services proxy request error to ${targetUrl}:`, proxyErr);
+                if (!res.headersSent) {
+                    res.status(502).json({ message: 'Bad Gateway - Error connecting to Traefik API (v2/http/services)', error: proxyErr.message });
+                }
+            });
+            req.pipe(x).pipe(res); // Pipe request to Traefik, and Traefik's response back to client
+        } catch (requestErr) {
+             console.error(`Error initiating request to ${targetUrl}:`, requestErr);
+             if (!res.headersSent) {
+                res.status(500).json({ message: 'Failed to initiate proxy request to Traefik API', error: requestErr.message });
+            }
+        }
+    });
+});
+
+/* GET v2 overview info from traefik. */
+router.get('/v2/overview', function (req, res, next) {
+    db.findOne({ name: 'url' }, function (err, doc) {
+        if (err) {
+            console.error("Error fetching URL from DB:", err);
+            return res.status(500).json({ message: 'Database error fetching Traefik URL', error: err });
+        }
+
+        if (!doc || !doc.value) {
+            return res.status(404).json({
+                message: 'Traefik URL not configured or found in DB'
+            });
+        }
+
+        const targetUrl = doc.value.replace(/\/$/, '') + '/api/overview'; // Ensure no trailing slash
+        console.log(`Proxying request to Traefik v2 overview: ${targetUrl}`);
+
+        try {
+            var x = request(targetUrl);
+            x.on('error', function(proxyErr) {
+                console.error(`Traefik v2 overview proxy request error to ${targetUrl}:`, proxyErr);
+                if (!res.headersSent) {
+                    res.status(502).json({ message: 'Bad Gateway - Error connecting to Traefik API (v2/overview)', error: proxyErr.message });
+                }
+            });
+            req.pipe(x).pipe(res);
+        } catch (requestErr) {
+             console.error(`Error initiating request to ${targetUrl}:`, requestErr);
+             if (!res.headersSent) {
+                res.status(500).json({ message: 'Failed to initiate proxy request to Traefik API', error: requestErr.message });
+            }
+        }
+    });
+});
+
+/* GET v2 entrypoints info from traefik. */
+router.get('/v2/entrypoints', function (req, res, next) {
+    db.findOne({ name: 'url' }, function (err, doc) {
+        if (err) {
+            console.error("Error fetching URL from DB:", err);
+            return res.status(500).json({ message: 'Database error fetching Traefik URL', error: err });
+        }
+
+        if (!doc || !doc.value) {
+            return res.status(404).json({
+                message: 'Traefik URL not configured or found in DB'
+            });
+        }
+
+        const targetUrl = doc.value.replace(/\/$/, '') + '/api/entrypoints'; // Ensure no trailing slash
+        console.log(`Proxying request to Traefik v2 entrypoints: ${targetUrl}`);
+
+        try {
+            var x = request(targetUrl);
+            x.on('error', function(proxyErr) {
+                console.error(`Traefik v2 entrypoints proxy request error to ${targetUrl}:`, proxyErr);
+                if (!res.headersSent) {
+                    res.status(502).json({ message: 'Bad Gateway - Error connecting to Traefik API (v2/entrypoints)', error: proxyErr.message });
+                }
+            });
+            req.pipe(x).pipe(res);
+        } catch (requestErr) {
+             console.error(`Error initiating request to ${targetUrl}:`, requestErr);
+             if (!res.headersSent) {
+                res.status(500).json({ message: 'Failed to initiate proxy request to Traefik API', error: requestErr.message });
+            }
+        }
+    });
+});
+
+/* GET v2 http middlewares info from traefik. */
+router.get('/v2/http/middlewares', function (req, res, next) {
+    db.findOne({ name: 'url' }, function (err, doc) {
+        if (err) {
+            console.error("Error fetching URL from DB:", err);
+            return res.status(500).json({ message: 'Database error fetching Traefik URL', error: err });
+        }
+
+        if (!doc || !doc.value) {
+            return res.status(404).json({
+                message: 'Traefik URL not configured or found in DB'
+            });
+        }
+
+        const targetUrl = doc.value.replace(/\/$/, '') + '/api/http/middlewares'; // Ensure no trailing slash
+        console.log(`Proxying request to Traefik v2 http/middlewares: ${targetUrl}`);
+
+        try {
+            var x = request(targetUrl);
+            x.on('error', function(proxyErr) {
+                console.error(`Traefik v2 http/middlewares proxy request error to ${targetUrl}:`, proxyErr);
+                if (!res.headersSent) {
+                    res.status(502).json({ message: 'Bad Gateway - Error connecting to Traefik API (v2/http/middlewares)', error: proxyErr.message });
+                }
+            });
+            req.pipe(x).pipe(res);
+        } catch (requestErr) {
+             console.error(`Error initiating request to ${targetUrl}:`, requestErr);
+             if (!res.headersSent) {
+                res.status(500).json({ message: 'Failed to initiate proxy request to Traefik API', error: requestErr.message });
+            }
+        }
+    });
+});
+
+/* GET v2 tls certificates info from traefik. */
+router.get('/v2/tls/certificates', function (req, res, next) {
+    db.findOne({ name: 'url' }, function (err, doc) {
+        if (err) {
+            console.error("Error fetching URL from DB:", err);
+            return res.status(500).json({ message: 'Database error fetching Traefik URL', error: err });
+        }
+
+        if (!doc || !doc.value) {
+            return res.status(404).json({
+                message: 'Traefik URL not configured or found in DB'
+            });
+        }
+
+        const targetUrl = doc.value.replace(/\/$/, '') + '/api/tls/certificates'; // Ensure no trailing slash
+        console.log(`Proxying request to Traefik v2 tls/certificates: ${targetUrl}`);
+
+        try {
+            var x = request(targetUrl);
+            x.on('error', function(proxyErr) {
+                console.error(`Traefik v2 tls/certificates proxy request error to ${targetUrl}:`, proxyErr);
+                if (!res.headersSent) {
+                    res.status(502).json({ message: 'Bad Gateway - Error connecting to Traefik API (v2/tls/certificates)', error: proxyErr.message });
+                }
+            });
+            req.pipe(x).pipe(res);
+        } catch (requestErr) {
+             console.error(`Error initiating request to ${targetUrl}:`, requestErr);
+             if (!res.headersSent) {
+                res.status(500).json({ message: 'Failed to initiate proxy request to Traefik API', error: requestErr.message });
+            }
+        }
+    });
+});
+
+module.exports = router;
+</file>
+
+<file path="package.json">
+{
+  "name": "react-traefik",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "body-parser": "~1.17.1",
+    "config": "^1.26.1",
+    "cors": "^2.8.3",
+    "d3": "^4.8.0",
+    "debug": "~2.6.3",
+    "dockerode": "^2.4.3",
+    "express": "~4.15.2",
+    "isomorphic-fetch": "^2.2.1",
+    "jquery": "^3.2.1",
+    "lodash": "^4.17.4",
+    "morgan": "~1.8.1",
+    "nedb": "^1.8.0",
+    "prop-types": "^15.5.8",
+    "react": "^16.14.0",
+    "react-dom": "^16.14.0",
+    "react-redux": "^5.0.4",
+    "react-traefik": "file:",
+    "redux": "^4.2.0",
+    "redux-logger": "^3.0.1",
+    "redux-thunk": "^2.2.0",
+    "request": "^2.81.0",
+    "serve-favicon": "~2.4.2"
+  },
+  "devDependencies": {
+    "chai": "^3.5.0",
+    "chai-http": "^3.0.0",
+    "mocha": "^3.4.1",
+    "react-scripts": "4.0.3",
+    "should": "^11.2.1",
+    "supertest": "^3.0.0"
+  },
+  "scripts": {
+    "start": "npm run start-api",
+    "test": "mocha --timeout 10000",
+    "start-api": "node ./api/bin/www",
+    "start-front": "react-scripts start",
+    "build-front": "react-scripts build",
+    "test-front": "react-scripts test --env=jsdom",
+    "eject-front": "react-scripts eject",
+    "install": "npm run build-front"
+  },
+  "proxy": "http://localhost:3001",
+  "browser": {
+    "child_process": false
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}
+</file>
+
+</files>
